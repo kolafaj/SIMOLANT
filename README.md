@@ -18,15 +18,20 @@ Molecular simulation in 2D
 
   * Ergodic and deterministic dynamic systems
   * Nucleation, Ostwald ripening
-  * Molecular dynamics at constant energy and temperature
-  * Metropolis and Creutz Monte Carlo
-  * Convergence profile of energy to study thermostats
-  * Radial distribution function and coordination number
+  * Molecular dynamics at constant energy / temperature / pressure
+  * Monte Carlo at constant energy / temperature / pressure
+  * Convergence profiles of quantities
+  * Radial distribution function
   * Radial density profile, z-density profile
   * Walls and periodic boundary conditions
-  * Flying icecube problem
-  * Export of quantities incl. error estimates, convergence profiles
-  * Enter parameters also from keyboard
+  * Flying icecube artifact
+  * Expert: export of quantities and statistics, keyboard input
+
+* _Student work_
+
+  * [Verification of the Clausius-Clapeyrom equation](http://old.vscht.cz/fch/en/tools/kolafa/tul/simenw1.pdf)
+  * [Pressure outside a droplet/inside cavity (Kelvin equation)](http://old.vscht.cz/fch/en/tools/kolafa/simenw3.pdf)
+  * Surface / interfacial tension, contact angle
 
 ## Licence
 
@@ -36,10 +41,12 @@ Molecular simulation in 2D
 
 * http://old.vscht.cz/fch/software/simolant/index-en.html
 
-## Executables (including guide)
+## Executables (including simolant.html)
+
+Create a folder (directory), extract to this folder and run from it.
+_In Windows, do not run directly from "folder simolant-win32"!_
 
 * simolant-amd64.zip - for linux (64 bit)
 * simolant-win32.zip - for Microsoft Windows (32 bit)
 
-
-![SIMOLANT](screenshot.png)
+![SIMOLANT](sources/screenshot.png)
