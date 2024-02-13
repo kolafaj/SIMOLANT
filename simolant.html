@@ -1,0 +1,1022 @@
+<head>
+  <title>SIMOLANT 02/2024</title>
+   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 02/2024</font></h1>
+
+<!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
+
+  <a name="Contents"></a>
+  <h2><font color="NAVY" face="SANS">Contents</font></h2>
+  <ul>
+    <li><a href="#Quick">Quick popular start</a></li>
+    <li><a href="#Installation">Installation</a></li>
+    <li><a href="#Aims">Aims of SIMOLANT</a></li>
+      <ul>
+        <li><a href="#High">Elementary and high schools</a></li>
+        <li><a href="#Universities">Universities</a></li>
+      </ul>
+    <li><a href="#Model">Molecular model</a></li>
+      <ul>
+        <li><a href="#Potential">Interaction potential</a></li>
+        <li><a href="#Limits">How realistic is this all?</a></li>
+      </ul>
+    <li><a href="#Menus">Menus</a>
+      <ul>
+        <li><a href="#File">File</a></li>
+        <li><a href="#Prepare">Prepare system</a></li>
+        <li><a href="#Method">Method</a></li>
+        <li><a href="#BC">Boundary conditions</a></li>
+        <li><a href="#Show">Show</a></li>
+        <li><a href="#Help">Help</a></li>
+      </ul>
+    <li><a href="#Panel">Right Panel</a></li>
+      <ul>
+        <li><a href="#Symbols">Symbols</a></li>
+        <li><a href="#Variables">Variables</a></li>
+        <li><a href="#Sliders">Sliders</a></li>
+        <li><a href="#Walls">Walls</a></li>
+        <li><a href="#Expert">Expert</a></li>
+        <li><a href="#Switches">Switches</a></li>
+        <li><a href="#Speed">Simulation speed and measurement blocking</a></li>
+      </ul>
+    <li><a href="#Command">Command line options</a></li>
+    <li><a href="#Bugs">Known bugs and caveats</a></li>
+    <li><a href="#Copy">Copying and Credits</a></li>
+  </ul>
+
+  <a name="Quick"></a>
+  <h2><font color="NAVY" face="SANS">Quick popular start</font></h2>
+  <p>Molecules attract each other when they are close together (the
+    "atom disks" almost touch).  If the molecules are even closer, they
+    begin to repel (the disks overlap).  If the atoms are far away,
+    they (almost) do not feel each other.</p>
+
+  <ul>
+    <li>When SIMOLANT starts, the temperature is set high and you see
+      molecules moving freely in a box.  This is a (two-dimensional)
+      gas.</li>
+    <li>Cool the system (using slider <font face="helvetica">T</font>)
+      to a temperature about T=0.6
+      (watch <font color=red face="helvetica">T=</font> in the right top panel).
+      The molecules will slow down, the attraction forces prevail and
+      cause the molecules to condense to a liquid droplet.</li>
+    <li>Hence, cool the system to about <font face="helvetica">T=0.3</font>.
+      Molecules will arrange spontaneously to a hexagonal lattice.</li>
+    <li>Try more from menu Prepare system.</li>
+  </ul>
+
+  <a name="Installation"></a>
+  <h2><font color="NAVY" face="SANS">Installation</font></h2>
+  <p>Get the respective zip-file (simolant-win32.zip for Windows or
+    simolant-amd64.zip for 64-bit linux) and unzip it to a folder.  Run
+    simolant.exe or simolant from this folder (this is necessary for the
+    online help).</p>
+  <p>On other platforms, download simolant-sources.zip and follow the
+    instructions in readme.txt. You need FLTK V1.3 and gcc/g++.</p>
+
+  <a name="Aims"></a>
+  <h2><font color="NAVY" face="SANS">Aims of SIMOLANT</font></h2>
+
+  <a name="High"></a>
+  <h3><font color="navy" face="sans"><i>Elementary and high
+  school</i></font></h3>
+
+  <p>A number of phenomena are shown using a two-dimensional molecular model of matter:</p>
+  <ul>
+    <li>Condensation of gas and crystallization of liquid on cooling.</li>
+    <li>Melting and evaporation on heating.</li>
+    <li>Mixing of fluids and gases.</li>
+    <li>Capillary action.</li>
+    <li>Crystal defects in motion.</li>
+    <li>Gas in a gravitational field.</li>
+    <li>Impact of a solid body (crystal) to a wall.</li>
+  </ul>
+
+  <a name="University"></a>
+  <h3><font color="navy" face="sans"><i>Universities</i></font></h3>
+
+  <p>Basic concepts of statistical thermodynamics and molecular simulations can be elucidated:</p>
+  <ul>
+    <li>Ergodic and deterministic dynamic systems.</li>
+    <li>Nucleation, Ostwald ripening.</li>
+    <li>Molecular dynamics at constant energy, temperature (several thermostats), and pressure.</li>
+    <li>Monte Carlo at constant energy, temperature, and pressure.</li>
+    <li>Dependence if the (extended) integrals of motion (total energy) on timestep and thermostat/barostat time constants.
+    <li>Flying icecube problem of the Berendsen thermostat</li>
+    <li>Radial distribution function and coordination number.</li>
+    <li>Walls and periodic boundary conditions.</li>
+    <li>Simulation workouts: verification of the Clausius-Clapeyron equation, critical point derermination (by near-critical isotherms), line tension ("surface tension" in 2D).</li>
+  </ul>
+
+  <a name="Model"></a>
+  <h2><font color="NAVY" face="SANS">Molecular model</font></h2>
+
+  <a name="Potential"></a>
+  <h3><font color="navy" face="sans"><i>Interaction potential</i></font></h3>
+
+  <p>The interaction potential is a function of
+    interparticle distance <i>r</i>:</p>
+  <p>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>^8 − 4/<i>r</i>^4
+  </p>
+  <p>Term 4/<i>r</i>^8 is positive and therefore repulsive.  The
+    term −4/<i>r</i>^4 is negative and therefore attractive; it has a
+    longer range than the repulsive term.  The minimum of the potential
+    is −1 at <i>r=</i>2^(1/4)=1.189 (line marked as rmin in the graph of
+    RDF).</p>
+
+  <p>This is a two-dimensional analogue of the well-known Lennard-Jones
+    potential.  We do not use any real units – the units are defined
+    by the above formula (and the Boltzmann constant <i>k</i>=1).</p>
+
+  <p>Because of consistent implementation of NPT ensembles, the potential
+    is truncated and smoothed.  The truncated potential equals the original
+    one for <i>r&lt;C</i>, otherwise</p>
+
+  <p>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = <i>A</i>(<i>r</i>² − cutoff²)² &nbsp;  for <i>r</i> ∈ (<i>C</i>,cutoff),<br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp;  for <i>r</i> &gt; <i>C</i>,
+  </p>
+
+  <p>where constants <i>A</i> and <i>C</i> (<i>C</i>&lt;cutoff) are determined
+  so that both the potential and forces are continuous (the derivate of
+  forces has jumps).  No cutoff corrections are added.  The default cutoff=4.
+
+  <p> for cutoff&lt;L/2, the nearest-image algorithm is used, otherwise a sum over all periodic images is calculated.</p>
+
+  <p> The critical point is approximately T=0.85, P=0.06, ρ=0.3 for cutoff=4.</p>
+
+  <p>We have also two types of walls, attractive and repulsive.  The
+    attractive wall is built of the same particles, but imagine them ground
+    to tiny pieces and smoothly distributed on one side of the wall with
+    number density ρ=N/L²=0.75 (can be changed by option -Pwall=VALUE).
+    The particle–wall potential is thus</p>
+
+  <p>
+    &nbsp; &nbsp; <i>u</i><sub>wall</sub>(<i>d</i>) = πρ (5/24<i>d</i>^6−1/<i>d</i>^2)
+  </p>
+
+  <p>The repulsive wall is similar, only the attractive (negative) term is omitted.
+    The wall potentials are not truncated</p>
+
+  <a name="Limits"></a>
+  <h3><font color="navy" face="sans"><i>How realistic is this all?</i></font></h3>
+
+  <p> The two-dimensional model used by SIMOLANT is easier to show and
+    simulate than a realistic three-dimensional model of, e.g., water.
+    Nevertheless, basic concepts shown are <i>qualitatively</i> the same as
+    in three dimensions.  The only notable exception is a possibly
+    different nature of the freezing transition.  If water freezes, a
+    nucleus of ice appears and then it grows – there is an interface
+    between both phases.  This is similar to vapor condensation in both 2D
+    and 3D.  However, when some 2D systems are cooled, there is no
+    interface between frozen and liquid phases (Costerlitz-Thouless
+    continuum transition).  Instead, hexagonally ordered areas grow
+    anywhere in the system.  At the freezing point the size of these areas
+    diverges to infinity, i.e., (in equilibrium) we obtain a single crystal
+    structure spanning the whole system.  Other 2D systems freeze as in 3D
+    (i.e., via the first order phase transition), but the nucleation
+    phenomena are not so apparent; this is likely the case of 2D hard
+    disks.  The type of freezing of our 2D system is not known.</p>
+
+  <p> The model is more appropriate for 2D systems as surfactants
+    floating on a surface of water.  Such molecules form 2D gas, 2D
+    liquid, and hexagonally ordered 2D solids (and even more...).
+    (E.g., the surface pressure can be easily demonstrated in a kitchen by
+    throwing a few matches to a bowl of water and touching the surface
+    by a piece of soap.) </p>
+
+  <p> The potential decreases to zero more slowly than London forces in
+    3D, therefore, gas at moderate densities is less ideal than in 3D –
+    the compressibility factor Z deviates from 1, especially al low
+    temperatures. </p>
+
+  <a name="Menus"></a>
+  <h2><font color="NAVY" face="SANS">Menus</font></h2>
+  <a name="File"></a>
+  <h3><font color="navy" face="sans"><i>File</i></font></h3>
+  <ul>
+    <li><b><u>O</u>pen...</b><br>
+      Load previously saved file with a configuration.</li>
+
+    <li><b><u>S</u>ave as...</b><br>
+      Save the configuration and (selected) simulation parameters to
+      a file.  Extension .sim is added if not present.</li>
+
+    <li><b><u>P</u>rotocol name...</b><br>
+      Change the name of the file used for printing measured quantities
+      (see the [ ▯ record ] button).
+      Extension .txt is added if not present.</li>
+
+    <li><b><u>Q</u>uit </b><br>
+      Quit SIMOLANT. Also pressing Esc will quit.</li>
+  </ul>
+
+  <a name="Prepare"></a>
+  <h3><font color="navy" face="sans"><i>Prepare system menu</i></font></h3>
+
+  The simulation start, methods, and parameters of simulation, and
+  quantities to observe are prepared for you to observe phenomena.
+
+  <ul>
+    <li><b><u>G</u>as</b><br>
+      A dilute system at temperature <font face="helvetica">T=1</font>
+      represents a (two dimendional) gas.
+      Try to cool it to about <font face="helvetica">T=0.6</font> and
+      observe the changes.</li>
+
+    <li><b>+ <u>D</u>iffusion</b><br>
+      As above, and molecules are colored so that you can observe
+      diffusion.
+
+    <li><b>+ G<u>r</u>avity</b><br>
+      Gas in a gravitational field.  Watch the vertical density profile.</li>
+
+    <li><b>Vapor-liquid <u>e</u>quilibrium</b> A "vessel" periodic in the
+      <i>x</i>-direction is prepared with liquid at bottom.  Watch pressure and
+      density as you cool or heat the system a bit.  You may try Metropolis
+      Monte Carlo.<br>
+      See also clausius-clapeyron.pdf workout</li>
+
+    <li><b><u>N</u>ucleation</b><br>
+      Dilute gas is prepared and quickly cooled (quenched).  Several
+      small droplets soon form.  They coalesce to bigger droplets.  For a
+      more realistic simulation corresponding better to the condensation
+      of water vapor in wet air, the Langevin thermostat is used – heat
+      transfer between air and droplets is modeled by random forces.  If
+      you are patient, you may observe another phenomenen
+      responsible for growth of large droplets at the expense of small
+      ones – Ostwald ripening.  The trick is that small droplets
+      evaporate faster than the big ones because of their curved
+      surface.  On the contrary, bigger droplets catch more eagerly
+      flying molecules and grow faster.</li>
+
+    <li><b><u>L</u>iquid</b><br> A small droplet is produced at
+      temperature <font face="helvetica">T=0.6</font> in the periodic
+      boundary consitions.  It will solidify on cooling and evaporate on
+      heating up.<br>
+      With a smaller number of particles and lower density ans small τ, the
+      flyinf icecube artifact can be observed with the Berendesen
+      thermostat.</li>
+
+    <li><b><u>C</u>apillary</b><br>
+      Capillary action under a microscope. The left, right, and bottom
+      walls are attractive and a small gravity is turned on. You can see
+      a meniscus.  Try to make the left and right walls repulsive and
+      observe the changes!</li>
+
+    <li><b><u>B</u>ubble (cavity)</b><br>
+      A cavity (commonly called "bubble") in liquid.</li>
+
+    <li><b><u>H</u>exagonal crystal</b><br>
+      A perfect piece of hexagonal crystal
+      at <font face="helvetica">T=0.2</font> is prepared.
+      The number of particles may change to match a regular hexagon.
+      Molecules are colored according to the number of neighbors.
+      <br>
+      <b>Hints:</b>
+      <ul>
+        <li> <b>Melt</b> the crystal (increase T).</li>
+        <li> <b>Impact</b> it to the ground (use gravity) – it will
+          recrystallize because of low T.</li>
+        <li> <b>Smash</b> it to the ground at constant energy (switch to
+          the NVE molecular dynamics and then use gravity).  A crystal will
+          melt and perhaps evaporate; set dt=0.02 (using cmd: input field)
+          in case of problems with too large forces.)</li>
+      </ul>
+    </li>
+
+    <li><b>+ <u>E</u>dge defect</b><br>
+      A piece of crystal with an edge dislocation.  The defect quickly
+      travels through the crystal and eventually disappears at the
+      crystal surface.
+
+    <li><b>+ <u>V</u>acancy</b><br>
+      One missing atom in a perfect crystal. This defect diffuses only
+      slowly.</li>
+
+    <li><b>+ <u>I</u>nterstitial</b><br>
+      One additional atom in a perfect crystal. This atom has a high
+      energy and again diffuses out to the surface.</li>
+  </ul>
+
+  <a name="Method"></a>
+  <h3><font color="navy" face="sans"><i>Method menu</i></font></h3>
+
+  <p>Here the simulation method (MC/MD), ensemble (NVE, NVT, NPT) and
+  thermostat/barostat flavor are selected.</p>
+
+  <ul>
+    <li><b><u>A</u>utomatic (MC→MD/Berendsen)</b><br>
+
+      Several first steps are performed by the Metropolis Monte Carlo
+      method at constant temperature T (this is marked by symbol MC→MD in
+      the right top corner).  After particle overlaps are removed, the
+      simulation switches to molecular dynamics (symbol [MD/Berendsen] (see
+      <a href="#Berendsen">Berendsen thermostat</a>).  If a
+      problem is encountered (particle overlap which would lead to
+      integration failure), several Metropolis Monte Carlo steps are
+      automatically performed again.</li>
+
+    <a name="Creutz"></a>
+    <li><b>Monte Carlo NVE (<u>C</u>reutz)</b><br>
+      The Monte Carlo (MC) algorithm samples the configurations of
+      molecules using random moves.  In the constant-energy Creutz
+      version, a demon with a bag full of energy visits molecules and
+      tries to push them randomly a bit (random displacement in a disk
+      of diameter d).  If the energy decreases, the move is accepted
+      and the demon stores the released energy in the bag.  If the
+      energy increases, the move is performed only if there is enough
+      energy in the demon's bag, otherwise the move is rejected and
+      the simulation continues with the original unchanged
+      configuration.  This procedure is repeated many times (one MC
+      sweep is when every particle is tried to move once).
+      <br>
+      If there is (on average) a lot of energy in the bag, the
+      configurations of the system have high energy, too, which means
+      that the temperature is high.  Mathematically, the demon's
+      energy is distributed according to the Boltzmann distribution,
+      prob(Ebag) = const exp(-Ebag/<i>k</i>T), hence the temperature
+      is given by averaged bag energy as
+      <p>
+        &nbsp; &nbsp; Tbag = ⟨Ebag⟩/<i>k</i>.
+      </p>
+      In the right panel you will see this temperature averaged in
+      blocks of one or more sweeps.  It fluctuates in the course of
+      the simulation.<br>
+      By default, the trial displacement is determined automatically to reach the acceptance ratio of 0.3.
+      For productive runs, this should be turned off by button [▯ set MC move ].
+    </li>
+
+    <a name="Metropolis"></a>
+    <li><b>Monte Carlo NVT (<u>M</u>etropolis)</b><br>
+      The more useful Metropolis Monte Carlo algorithm works at
+      constant temperature <i>T</i>, which is a parameter of the
+      simulation.  Here the demon visits a termostat before every step
+      and gets energy corresponding to its temperature.
+      Mathematically
+      <p>
+        &nbsp; &nbsp; Ebag=-<i>kT</i> ln(rnd),
+      </p>
+      where rnd is a random number drawn uniformly from interval
+      (0,1). Once again, high-energy configurations are more probable at
+      high temperatures, low-energy configurations at low temperatures.
+      The demon's temperature (after a move) Tbag converges to the
+      thermostat temperature <i>T</i> and then fluctuates around it (on
+      average, the energy the demon returns to the thermostat equals the
+      energy he gets back).</li>
+
+    <a name="MCNPT"></a>
+    <li><b>Monte Carlo N<u>P</u>T (Metropolis)</b><br>
+      The volume of the system randomly fluctuates in this
+      isothermal-isobaric ensemble.  Again, the change of volume is either
+      accepted or rejected to maintain constant pressure on average.
+      Note that the simulation box is always drawn at the same size and the
+      sizes of molecules change instead.<br>
+      If the barostat pressure is too low, the volume becomes too large.
+      In this case, an error is reported and the simulation switches to
+      NVT.  You should change (increase) P from the cmd: input field.
+      Alternatively, stop simulation by the  [ ▯ run ] button, then switch
+      to NPT, then use the P-slidet, then start simulation by
+      the  [ ▯ run ] button.<br>
+      The trial volume change is not available via a slider; use cmd:
+      dV=VALUE or automatic setup by button [▯ set MC move ].
+    <li><b>Molecular Dynamics (NV<u>E</u>)</b><br>
+      Molecular dynamics (MD) calculates trajectories of molecules in time
+      by numerical integration of the Newtonian equations of motion.
+      Molecules thus move "as in the real world".
+      <br>
+      Mathematically, we use the leap-frog algorithm given by formulas:
+      <p>
+        &nbsp; &nbsp; v(t+dt/2) := v(t-dt/2) + dt*f(t)/h,<br>
+        &nbsp; &nbsp; r(t+dt) := r(t) + dt*v(t+dt/2),
+      </p>
+      where v(t) is the velocity (velocities of all particles)
+      and r(t) position(s) at time t, respectively, and dt is the
+      timestep.  Forces f(t) are calculated from positions r(t).
+      <br>
+      The total (potential + kinetic) energy is conserved (subject to small
+      method errors).  Temperature is calculated from the kinetic
+      temperature by formula:
+      <p>
+        &nbsp; &nbsp; Tkin = 2 Ekin / <i>k</i> Nf,
+      </p>
+      where Ekin=½ Σ m v² is the kinetic energy (both the Boltzmann
+      constant <i>k</i> and particle mass m are here equal 1) and Nf
+      is the number of degrees of freedom (Nf=2N in a box; because of
+      momentum conservation in the NVE MD, Berendsen and Nosé-Hoover
+      thermostats, Nf=2N-2 in the periodic boundary conditions and
+      Nf=2N-1 in the slit).
+      <br>
+      The timestep dt is determined from temperature and thermostat type
+      and then kept constant.  In NVE and when temperature changes
+      abruptly, the integrator may fail.  A fixed timestep can be set on
+      start by option -Pdt=VALUE, or from running simolant from field cmd:,
+      variable dt.  The automatic timestep is set by dt=0.
+      <br>
+      Before the MD simulation starts, new velocities are drawn from the Maxwell-Boltzmann distribution.
+      This applies to all MD methods.
+    </li>
+
+    <a name="Berendsen"></a>
+    <li><b>Molecular Dynamics NVT (<u>B</u>erendsen)</b><br>
+
+      In order to maintain constant temperature, a thermostat has to be used.
+      The simplest one is the Berendsen (friction) thermostat.  It works by
+      rescaling all velocities by a factor so that Tkin approaches slowly the
+      defined temperature <i>T</i>.  This thermostat maintains kinetics and is
+      good for fast cooling or heating.  The coupling of the thermostat with
+      the system is given by the coupling (correlation) time τ.  Too low
+      values may cause problems for some systems as, e.g., the infamous
+      "flying icecube" (create a crystal in periodic boundary conditions, use
+      τ=0.1 and wait...).  It does not give the true canonical ensemble (the
+      same distribution of energies as if the system were at contact with a
+      thermostat) which is a disadvantage in some application.</li>
+
+    <a name="NH"></a>
+    <li><b>Molecular Dynamics NVT (<u>N</u>osé-Hoover)</b><br>
+
+      This popular (and probably the best) thermostat is based on a dynamic
+      variable (something like a "piston of entropy") interacting with the
+      system.  The coupling (correlation) time τ must be carefully set (less
+      than 0.3 is recommended): Too long values lead to long oscillations in
+      temperature and poor convergence (the "piston" has large "inertia
+      mass"); too short values require short timesteps (the integration may
+      fail).
+      <br>
+      The method can be implemented by several algorithms.  Here we use the
+      TRVP (Time-Reversible Velocity Predictor) with <i>k</i>=1,
+      see <a href="https://doi.org/10.1021/ct200108g">J. Kolafa and
+      M. Lísal: <i>J. Chem. Theory Comput.</i> 7, 3596 (2011)</a>.</li>
+
+    <a name="Andersen"></a>
+    <li><b>Molecular Dynamics NVT (An<u>d</u>ersen)</b><br>
+
+      Constant temperature is maintained by thermalizing the molecules
+      randomly: A molecule forgets its old velocity and is launched at
+      random direction with random velocity corresponding (on average) to
+      temperature <i>T</i> (so-called Maxwell-Boltzmann distribution).
+      Again, τ determines how often (on average) a molecule is visited by a
+      random Maxwell-Boltzmann kicker.  This type of thermostat can be
+      interpreted as an action of random impacts of invisible gas molecules
+      in which our molecules are immersed.  The algorithm is subject to
+      errors for short τ and long dt.</li>
+
+    <a name="Maxwell-Boltzmann"></a>
+    <li><b>Molecular Dynamics NVT (Ma<u>x</u>well-Boltzmann)</b><br>
+
+      As above except that all molecules are asigned Maxwell-Boltzmann
+      random velocity corresponding (on average) to temperature <i>T</i> at
+      once every τ.</li>
+
+    <a name="Langevin"></a>
+    <li><b>Molecular Dynamics NVT (<u>L</u>angevin)</b><br>
+
+      Small random forces ceaselessly disturb all molecules.  Since this
+      would heat the system, a friction is added to slow the molecules.  If
+      both forces are balanced, the system maintains given
+      temperature <i>T</i>.  A simple version of the algorithm is
+      implemented so that the ensemble is not exactly canonical for short τ
+      and long dt.</li>
+
+    <a name="Bussi"></a>
+    <li><b>Molecular Dynamics NVT (B<u>u</u>ssi CSVR)</b><br>
+
+      Also called <i>Canonical Sampling through Velocity Rescaling</i>.
+      Similar to the Berendsen thermostat except that the rescaling factor is
+      amended by a random noise so that the resulting ensemble is canonical,
+      see <a href="https://doi.org/10.1016/j.cpc.2008.01.006">Bussi G. and
+      Parrinello M., <i>Comp. Phys. Comm.</i> 179, 26 (2028)</a>.</li>
+
+    <a name="MDNPT"></a>
+
+    <li><b>Molecular Dynamics NPT (<u>B</u>erendsen)</b><br>
+
+      Similar as the Berendsen thermostat.  Pressure is maintained by box
+      rescaling if the instantaneous virial pressure differs from
+      parameter <i>P</i>.  The analogous volume coupling (correlation) time
+      τ is calculated from the temperature time constant τ and the bulk
+      modulus calculated from a very approximate equation of state,
+      cf. variable qtau available via command in window cmd:.
+      <br>
+      Hint: use Show → Volume convergence profile with measurement block
+      slided left.
+
+    <a name="MTK"></a>
+    <li><b>Molecular Dynamics NPT (Ma<u>r</u>tyna et al.)</b><br>
+
+      Similar to the Nosé-Hoover thermostat but with a similar additional
+      degree of freedom  added.  You may interpret it as a "piston", but
+      attached to all particles so that it works also in the periodic
+      boundary conditions.  The time constant of this piston is qtau times τ.
+      Recommended τ is less than 0.3, the default qtau=5..
+      May easily crash if the initial configuration is far from
+      equilibrium.  Careful setting of τ, qtau may help.
+      Too low value of qtau, high pressure etc. cause oscillatory explosion.
+      With non-periodic boundary conditions, the scaling is still uniform.
+      The thermostat+barostat work, but setting the parameters is even more
+      difficult.
+      Unlike Berendsen, it gives the true isothermal-isobaric ensemble; try
+      to view the volume convergence profile and switch all three available
+      barostats.
+      <br>
+      The method is based on
+      paper <a href="https://doi.org/10.1063/1.467468">G. J. Martyna,
+      D. J. Tobias, M. L. Klein: <i>J. Chem. Phys.</i> 101, 4177 (1994)</a>,
+      our implementation uses TRVP (<i>k</i>=1) as <a href="#NH">above</a>.
+
+  </ul>
+
+  <a name="BC"></a>
+  <h3><font color="navy" face="sans"><i>Boundary conditions menu</i></font></h3>
+  <ul>
+    <li><b><u>B</u>ox (soft walls)</b><br>
+
+      Molecules are contained in a square box bounded by four walls
+      (attractive or repulsive – see below).</li>
+
+    <li><b><u>S</u>lit (<i>x</i>-periodic, <i>y</i>-walls)</b><br>
+      The system is periodic in the <i>x</i>-direction: Any molecule
+      leaving the box to the right will appear from the left.</li>
+
+    <li><b><u>P</u>eriodic</b><br>
+      The system is periodic in both the <i>x</i>- and <i>y</i>-directions. The
+      topology is the same as of a tire.<br>
+      Magic numbers of particles for crystals: 15, 56, 209, 780. This means
+      that a crystal without defects matching well a square periodic box is
+      possible. NPT Berendsen method is recommended.
+    </li>
+  </ul>
+
+  <a name="Show"></a>
+  <h3><font color="navy" face="sans"><i>Show menu</i></font></h3>
+
+  <p>Select quantities to measure and show are a graph to draw.  If button
+    [ ▯ record ] is pressed, the averages of the selected quantities and
+    graphs are recorded.</p>
+
+  <ul>
+    <li><b><u>M</u>inimum</b><br>
+
+      Measuring most quantities is turned off, shown are only the
+      potential energy and temperature/kinetic energy (if applicable) and
+      basic method parameters.  You should not use this option
+      with <font face="helvetica">▯ record</font> because most quantities
+      are not measure.</li>
+
+    <li><b><u>Q</u>uantities</b><br>
+
+      As above and additional quantities are measured and shown as text:<br>
+      Pressure (calculated from the virial of force); this pressure is used in barostats<br>
+      Diagonal components of the pressure tensor (calculated from the virial of force)<br>
+      Components of pressure on walls (calculated from forces on walls, if applicable)<br>
+      Line tension ("surface tension" in 2D).
+
+      <p>
+        &nbsp; &nbsp; γ = Ly*(Pyy-Pxx) (makes sense only in the slab geometry).
+      </p>
+
+      All the following options include these extended measurements, which
+      are exported if <font face="helvetica">▯ record</font> is pressed.</li>
+
+    <li><b><u>E</u>nergy/enthalpy convergence profile</b><br>
+
+      The running convergence profile of energy (potential + kinetic; for
+      Nosé-Hoover thermostat and MTK without the extended degrees of
+      freedom; for the Creutz method with the bag energy) or enthalpy (in
+      the NPT ensembles) is shown.  The graph is scaled to the running
+      miminum–maximum range (as printed) and the standard deviation of the
+      shown data is printed.
+      <br>
+      <b>Hints:</b><br>
+      &nbsp; &nbsp; Reset the graph by button [ reset ].<br>
+      &nbsp; &nbsp; Move slider <b>simulation speed</b> so that stride=1.<br>
+      &nbsp; &nbsp; Use slider <b>measurement block</b> as needed.
+    </li>
+
+    <li><b><u>T</u>emperature</b><br>
+      The running convergence profile of temperature (kinetic in MD,
+      averaged bag in MC).
+
+    <li><b><u>V</u>olume convergence profile</b><br>
+      The volume convergence profile (NPT only).
+
+    <li><b><u>P</u>ressure convergence profile</b><br>
+      The convergence profile of virial pressure.
+
+    <li><b><u>I</u>ntegral of motion convergence profile</b><br>
+      The conserved energy in MD (NVE: total energy, Nosé-Hoover and MTK:
+      extended energy).
+
+    <li><b><u>R</u>adial distribution function (RDF)</b><br>
+
+      The RDF represents the probability of finding a pair of molecules a
+      given distance <font face="helvetica">r</font> apart, normalized so
+      that for interactionless particles (ideal gas) it is 1.  On
+      the <font face="helvetica">r</font>-axis,
+      <font face="helvetica">rmin</font> denotes the potential minimum.
+      The RDF curve is scaled from zero to the maximum.  To look better,
+      the curve is smoothed by applying two (for block=1) or one (block>1)
+      three-point formulas.
+      <br>
+      The RDF exported (after recording) is not smoothed</li>
+
+    <li><b><u>V</u>ertical density profile</b><br>
+
+      The vertical density profile is a horizontally averaged number
+      density as a function of the <i>y</i>-coordinate of atoms (from
+      bottom). If the system is <i>y</i>-periodic, the profile (of a
+      horizontal slab) is centered at every step (i.e., it does not matter
+      when the slab diffuses up and down).  The printed profile is placed
+      so that the box center is zero (range [−L/2,L/2], the shown profile
+      is in [0,L].  If the box dimensions fluctuate in the NVT ensembles,
+      the <i>y</i>-box side is always divided in the same number of
+      histogram bins (the bin width fluctutes); the final graph uses the
+      averaged volume (area) for the <i>y</i>-coordinate as well as
+      scaling.  The <i>y</i>-range of the shown graph is dynamically
+      adjusted; overshooted values are orange.  Smoothing applies as for
+      RDF.  Instead of homogeneous pressure, both components Pxx and Pyy of
+      the pressure tensor are shown.
+
+    <li><b><u>D</u>roplet radial density profile</b><br>
+
+      Droplet radial density profile shows the full angle (0–360°)
+      averaged number density from the box center (if walls are
+      present), or from the droplet or slab center defined as
+      <p>
+        &nbsp; &nbsp; (L/2π)*atan2(Σ sin(xi*2π/L),Σ cos(xi*2π/L)).
+      </p>
+
+    <li><b><u>C</u>avity radial density profile</b><br>
+      As above, but in periodic boundary conditions with respect to
+      the cavity center,
+      <p>
+        &nbsp; &nbsp; (L/2π)*(atan2(Σ sin(xi*2π/L),Σ cos(xi*2π/L))+π).
+      </p>
+
+  </ul>
+
+  <a name="Help"></a>
+  <h3><font color="navy" face="sans"><i>Help menu</i></font></h3>
+  <ul>
+    <li><b><u>H</u>elp</b><br>
+      This help.</li>
+    <li><b><u>A</u>bout</b><br>
+      Copyright and acknowledgements.</li>
+  </ul>
+
+  <a name="Panel"></a>
+  <h2><font color="NAVY" face="SANS">Right Panel</font></h2>
+
+  <a name="Symbols"></a>
+  <h3><font color="navy" face="sans"><i>Symbols</i></font></h3>
+  <p>Top line in the right panel shows the number of particles and
+    the <font color="magenta" face="helvetica">MC|MD/ensemble/method</font>.
+  <font color="magenta" face="helvetica">MC→MD</font> means that MC is
+  running to remove overlaps and will be switched to MD.<br>  Symbol in
+  brackets <font color="magenta"
+  face="helvetica">[MC|MD/ensemble/method]</font> denotes that a switch
+  to MC and back is possible in case of problems.
+
+  <a name="Variables"></a>
+  <h3><font color="navy" face="sans"><i>Variables</i></font></h3>
+  <table>
+    <tr><td><font face="helvetica">N</font></td><td> Number of particles.</td></tr>
+    <tr><td><font face="helvetica">T</font></td><td> Thermostat or method temperature.</td></tr>
+    <tr><td><font face="helvetica">τ</font></td><td> Thermostat correlation (coupling) time (MD only).</td></tr>
+    <tr><td><font face="helvetica">L</font></td><td> Box size (as derived from density).</td></tr>
+    <tr><td><font face="helvetica">ρ</font></td><td> Number density, ρ = N/Area (see below for the definition of the Area).</td></tr>
+    <tr><td><font face="helvetica">g</font></td><td> Acceleration of gravity.</td></tr>
+    <tr><td><font face="helvetica">d</font></td><td> Radius of the trial displacement (MC only), in the units of Lh=L/2.</td></tr>
+    <tr><td><font face="helvetica">dV</font></td><td> Max. trial relative volume change in MC NPT.</td></tr>
+    <tr><td><font face="helvetica">P</font></td><td> Pressure (parameter of a NPT simulation)</td></tr>
+    <tr><td><font face="helvetica">stride</font></td><td> stride MD steps or MC sweeps is performed between drawing the configuration and measuring quantities.</td></tr>
+    <tr><td><font face="helvetica">block</font></td><td> Number of measurements in one block (by <font face="helvetica">stride</font> MC sweeps or MD steps).</td></tr>
+    <tr><td><font color="blue" face="helvetica">Tkin</font></td><td> Kinetic temperature (averaged in blocks, MD only).</td></tr>
+    <tr><td><font color="blue" face="helvetica">Tbag</font></td><td> Creutz demon bag temperature (averaged, MC only).</td></tr>
+    <tr><td><font color="blue" face="helvetica">dt</font></td><td> Integration time step (MD only); "dt⇒" denotes that dt has been determined automatically from T and τ.</td></tr>
+    <tr><td><font color="blue" face="helvetica">acc.r.</font></td><td> Acceptance ratio (ratio of accepted moves to all attempted moved, MC only).</td></tr>
+    <tr><td><font color="blue" face="helvetica">acc.r/(V)</font></td><td> Acceptance ratio of volume change in NPT simulations</td></tr>
+    <tr><td><font color="blue" face="helvetica">Pvir</font></td><td> Pressure (averaged configurational pressure based on the virial theorem incl. the kinetic term).</td></tr>
+    <tr><td><font color="blue" face="helvetica">V</font></td><td> Volume (in NPT)</td></tr>
+    <tr><td><font color="blue" face="helvetica">Pid</font></td><td> Pressure calculated from the ideal gas equation of state, Pid = ρ kT (here, k=1).</td></tr>
+    <tr><td><font color="blue" face="helvetica">Z</font></td><td> Compressiility factor, Z=P/Pid.</td></tr>
+    <tr><td><font color="blue" face="helvetica">Pxx</font></td><td> Diagonal <i>xx</i>-component of the pressure tensor (similarly Pyy).</td></tr>
+    <tr><td><font color="blue" face="helvetica">P(top_wall)</font></td><td> Pressure calculated from averaged force on the top wall (similarly other walls).</td></tr>
+    <tr><td><font color="blue" face="helvetica">γ</font></td><td> Surface tension (applies to the slab geometry).</td></tr>
+    <tr><td><font color="blue" face="helvetica">Etot</font></td><td> Total (potential + kinetic) energy of the whole simulation box.</td></tr>
+    <tr><td><font color="blue" face="helvetica">Epot</font></td><td> Potential energy of the whole simulation box.</td></tr>
+    <tr><td><font color="blue" face="helvetica">H</font></td><td> Enthalpy.</td></tr>
+  </table>
+
+  <a name="Sliders"></a>
+  <h3><font color="navy" face="sans"><i>Sliders panel</i></font></h3>
+  <p>Sliders can be moved by a mouse or (when the mouse pointer is over)
+    by arrows (ctrl-arrows for fine moves).
+    Instead of mouse, Tab, Shift-Tab, Enter, etc., work as usual.</p>
+
+  <ul>
+    <li><font face="helvetica">T</font> &nbsp;  Temperature.<br>
+
+      In the Metropolis Monte Carlo method it is directly a control
+      parameter of the method.  In molecular dynamics a thermostat is
+      coupled to the system with a typical (correlation or coupling)
+      time τ.</li>
+
+    <li><font face="helvetica">τ</font> &nbsp; Thermostat coupling time
+      (MD only).<br>
+
+      Long time means that the system is well insulated from the
+      thermostat and the system temperature approaches the predefined
+      value <i>T</i> slowly. Short time means that heat can flow between
+      the system and thermostat very fast.</li>
+
+    <li><font face="helvetica">d</font> &nbsp; Trial displacement radius
+      (MC only).<br>
+
+      Too long displacements change the configuration a lot, however,
+      they are (at lower temperatures) rarely accepted and the
+      simulation is inefficient.  Too short displacements are almost
+      always accepted, however, the old and new configurations are
+      almost identical.  See the acceptance ratio.  Value d=0 (bottom)
+      means that the trial displacement radius is dynamically adjusted
+      to reach acc.r.=1/3; in addition, long moves (new random position)
+      with probability 2 % are performed.</li>
+
+    <li><font face="helvetica">g</font> &nbsp;  Acceleration of gravity.<br>
+
+      Negative values point downwards (as in the Earth gravitational
+      field), positive upwards.  In the periodic boundary conditions the
+      forces of gravity are inactive.</li>
+
+    <li><font face="helvetica">ρ</font> &nbsp;  Number density <font face="helvetica">ρ=N/Area</font>.<br>
+
+      Since <font face="helvetica">N</font> is kept constant, increasing
+      density actually decreased the box size L, and vice versa.  However,
+      for better view, the box is displayed in the same size and the
+      particle diameters are changed instead. (Imagine you view the screen
+      from such a distance that you see the particles as discs of the
+      original size.)  Particle coordinates are rescaled with the box.
+      <br>
+      <font face="helvetica">Area</font> is defined (approximately) as
+      follows:
+      <ul>
+        <li><font face="helvetica">Area</font> = (L-1.2)² in the box (with walls)</li>
+        <li><font face="helvetica">Area</font> = L (L-1.2) in the slit</li>
+        <li><font face="helvetica">Area</font> = L² in the periodic boundary conditions</li>
+      </ul>
+
+    <li><font face="helvetica">P</font> &nbsp;  Pressure.<br>
+      Parameter of NPT simulations.
+
+    <li><font face="helvetica">N</font> &nbsp;  Number of particles.<br>
+      Change the number of particles.
+      Note that the density is kept constant so that the box is
+      rescaled, too.
+      If MD is running, it will likely be switched to Monte Carlo.
+      <ul>
+        <li> decrease <font face="helvetica">N</font>: randomly selected particles are removed</li>
+        <li> increase <font face="helvetica">N</font>: particles are inserted at random places</li>
+      </ul>
+  </ul>
+
+  <a name="Walls"></a>
+  <h3><font color="navy" face="sans"><i>Walls</i></font></h3>
+  Clicking the respective buttons will toggle repulsive (red) and attractive
+  (green) walls.
+
+  <a name="Expert"></a>
+  <h3><font color="navy" face="sans"><i>Expert</i></font></h3>
+  Some more advanced functions.
+  <ul>
+    <li><b>record</b><br>
+
+      Turning the [ ▯ record ] button on will
+      start recording the measured values (of energies, pressure, etc.).<br>
+      If the [&nbsp;▯&nbsp;record&nbsp;] button is turned off,
+      averages of the measured
+      quantities are displayed (with error estimates). You may choose from:
+      <ul>
+        <li><font face="helvetica">clear (data lost)</font> – measured data
+          are cleared, recording is turned off.</li>
+        <li><font face="helvetica">save (...) and clear</font> (also
+          Enter) – write the shown
+          data and more info to a file (default name
+          = <font face="helvetica">simolant.txt</font>, can be changed from
+          the menu File → Protocol name...).  The file is overwritten if
+          exists, however, any further invocation
+          of <font face="helvetica">save and clear</font> within one session
+          of SIMOLANT will append the results to the same file (unless
+          the file is changed)</li>
+        <li><font face="helvetica">continue</font> (also Esc) – no
+          action (continue with recording)</li>
+      </ul>
+      <p>Note that averaged data (see the block slider) are recorded and
+      that correlations between data are ignored in calculating the standard
+      errors.</p></li>
+
+    <li><b>,</b><br>
+      If selected, the recorded file will contain decimal commas, not
+        dots.</li>
+
+    <li><b>include:</b><br>
+      The output file (<font face="helvetica">simolant.txt</font> or as set
+      in the File menu) will include additional verbose information:
+      <ul>
+        <li> <b><u>N</u>othing</b> – No additional information; i.e., only statistics of basic thermodynamic quantities is recorded.</li>
+        <li> <b><u>C</u>onv.prof.</b> – Convergence profile = time series of quantites; i.e., a line of selected block-averaged thermodynamic quantities is printed for every block.</li>
+        <li> <b><u>D</u>ens.prof.</b> – The active density/distribution function including the cumulative function is printed when recording is stopped. The density/distribution function is selected from menu Show.</li>
+        <li> <b><u>B</u>oth</b> – Both convergence profile and the selected density/distribution function.</li>
+      </ul>
+
+    
+    <li><b>cmd:</b><br>
+      Allows for entering data in the form of numbers instead of sliders.
+      The format is <br>
+      &nbsp; &nbsp; <font face="helvetica">VARIABLE=NUMBER</font><br>
+      Type Enter after entering the data.
+      For instance:<br>
+      &nbsp; &nbsp; <font face="helvetica">rho=0.01</font><br>
+      The values can be outside the respective slider range; the slider
+      will then show a minimum or maximum.  It is still checked whether
+      the variable entered is within some reasonable range, but not
+      so strictly; the simulation may thus crash in some cases.
+      Both decimal comma and dot are accepted (irrespective of the comma
+      toggle).  Available variables (case-sensitive):
+      <table>
+        <tr><td><font face="helvetica">cutoff</font></td><td>Potential cut-off.</td></tr>
+        <tr><td><font face="helvetica">T</font></td><td>Thermostat emperature.</td></tr>
+        <tr><td><font face="helvetica">tau, τ</font></td><td>Thermostat time constant.</td></tr>
+        <tr><td><font face="helvetica">d</font></td><td>MC displacement.</td></tr>
+        <tr><td><font face="helvetica">dV</font></td><td>MC change of ln(V).</td></tr>
+        <tr><td><font face="helvetica">g</font></td><td>Gravity.</td></tr>
+        <tr><td><font face="helvetica">rho, ρ</font></td><td>Number density, ρ=N/V.</td></tr>
+        <tr><td><font face="helvetica">P</font></td><td>Barostat pressure.</td></tr>
+        <tr><td><font face="helvetica">qtau, qτ&nbsp;</font></td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
+        <tr><td><font face="helvetica">L</font></td><td>Box size.</td></tr>
+        <tr><td><font face="helvetica">dt, h</font></td><td>Time step; 0=automatic.</td></tr>
+        <tr><td><font face="helvetica">stride</font></td><td>Show each stride-th configuration.</td></tr>
+        <tr><td><font face="helvetica">block</font></td><td>Measurements/block for statistics and graphs.</td></tr>
+        <tr><td><font face="helvetica">th</font></td><td>Thermostat (in the order defined in the menu, 1st menu line=0).</td></tr>
+        <tr><td><font face="helvetica">bc</font></td><td>Boundary conditions (0=box, 1=<it>y</it>-periodic, 2=periodic).</td></tr>
+      </table>
+    </li>
+  </ul>
+
+  <a name="Switches"></a>
+  <h3><font color="navy" face="sans"><i>Switches</i></font></h3>
+  <ul>
+    <li><b>molecule size:</b><br>
+      Controls the size of molecules.
+      <ul>
+        <li> <b><u>R</u>eal</b> – The disk diameter equals the collision radius,
+          i.e., the distance where <i>u</i>(<i>r</i>)=0 (it
+          is <i>r</i>=1).</li>
+        <li> <b><u>S</u>mall</b> – 50 % of the collision radius</li>
+        <li> <b>Dot</b> – dot of 5 pixels, useful with Lines or Trace</li>
+        <li> <b>Pixel</b> – one pixels</li>
+      </ul>
+    <li><b>draw mode:</b>
+      <ul>
+        <li> <b>Movie</b> – Molecules in motion.</li>
+        <li> <b>Traces</b> – Trajectories are visible and gradually erased.</li>
+        <li> <b>Lines</b>  – Trajectories are visible.</li>
+        <li> <b>Nothing</b>  – Do not draw molecules nor box. Some speed is gained, especially for small systems.</li>
+      </ul>
+    <li><b>color mode:</b>
+      <ul>
+        <li> <b>Black</b> – Molecules are colored black (and this color is
+          kept).</li>
+        <li> <b><i>y</i>-split</b> – Top half is colored red, bottom half
+          blue (and these colors are kept).  Useful to study diffusion.</li>
+        <li> <b>Neighbors</b> – Molecules are drawn in colors according
+          to the number of neighbors (molecules lying closer than 1.55:
+          a tick will appear in the RDF graph to mark this distance).
+          New colors are calculated every step (unless you select Keep).</li>
+        <li> <b>Random</b> – Colorize atoms randomly (and keep these colors).</li>
+        <li> <b>Keep</b> – Previously selected colors are kept.</li>
+      </ul></li>
+    <li><b>reset</b><br> Restore the default behavior (movie of black
+      molecules).  In addition, red hints are removed. The Energy
+      convergece profile is reset, too (if shown).</li>
+    <li><b>set MC move</b><br> In MC simulations: The
+      trial move size is adjusted automatically.  If this button is
+      pressed, the obtained d (and in NPT also dV) is set and the MC simulation continues with
+      this constant d and dV. </li>
+    <li><b>run</b><br>
+      Stop the simulation temporarily. All other functions
+      (parameter change etc.) work as ususal and become active as soon
+      as the simulation is resumed.  Useful to chage parameters if the
+      current setup keeps launching errors.</li>
+  </ul>
+
+  <a name="Speed"></a>
+  <h3><font color="navy" face="sans"><i>Simulation speed and measurement blocking</i></font></h3>
+  <ul>
+    <li><b>simulation speed</b><br>
+      This slider controls the speed of the simulation/movie and the stride
+      of calculations (of quantities).
+      <ul>
+        <li> Leftmost: every frame is shown and delays are added between frames.</li>
+        <li> Left: 1–2 delays are added and moderate delays.</li>
+        <li> Center: short delays, every 3rd configuration shown.</li>
+        <li> Right: short delays, only every <i>n</i>-th configuration is shown.</li>
+        <li> Rightmost: every 15-th configuration is shown.</li>
+      </ul>
+    </li>
+    <li><b>measurement block</b><br>
+      Quantities of interest (kinetic temperature, pressure, RDF) are
+      averaged over certain number of simulation steps (sweeps in MC) and
+      then displayed at once.  The block length is in range [1,100], the
+      default is 10.</li>
+  </ul>
+
+  <a name="Command"></a>
+  <h2><font color="NAVY" face="SANS">Command line options</font></h2>
+
+  <p>FLTK options are recognized. Note a space between the option and its (optional) value. Useful ones:</p>
+  <table>
+    <tr><td><b>-g <font color="magenta">WxH+X+Y</font></b></td><td>geometry (W,H=window width and height, X,Y = position).  Do not use less than -g 958x683</td></tr>
+    <tr><td><b>-title&nbsp;<font color="magenta">"WINDOW TITLE"</font></b></td><td>change window title</td></tr>
+    <tr><td><b>-ico</b></td><td>start iconized</td></tr>
+    <tr><td><b>-notooltips</b></td><td>do not show tooltips (help text appearing over buttons and sliders)</td></tr>
+  </table>
+  <p>SIMOLANT options are in uppercase. The following number/value is without space! No check is done whether the values given are in a reasonable range!</p>
+  <table>
+    <tr><td><b>-D<font color="magenta">steps</font></b></td><td>debug mode (timing and technical info printed to stderr every MD or MC steps), disabled in Windows (recompile with -mconsole instead of -mwindows)</td></tr>
+    <tr><td><b>-I<font color="magenta">init</font></b></td><td>(init=number) initial system (Gas=0, Diffusion=1, etc.)</td></tr>
+    <tr><td><b>-I<font color="magenta">file</font></b></td><td>(file=name.sim) open sim-file on start</td></tr>
+    <tr><td><b>-N<font color="magenta">N</font></b></td><td>initial number of particles</td></tr>
+    <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated. Executed after initialization (-I, -N)<br>Example: -Pwall=1,th=1</td></tr>
+    <tr><td><b>-S<font color="magenta">speed</font></b></td><td>initial value of the simulation speed slider [default=0.7], affects the timer and (for speed>0) the number of the skipped frames. Normal range = [-1.5,2.5]</td></tr>
+    <tr><td><b>-T<font color="magenta">timer</font></b></td><td>timer delay in s for speed=0 [default=0.05]</td></tr>
+    <tr><td><b>-W<font color="magenta">rho</font></b></td><td>wall number density [default=0.75]</td></tr>
+    <tr><td><b><font color="magenta">file</font></b></td><td>(file=name.sim) open sim-file on start (when used as a single argument; use -I<font color="magenta">file</font> with other arguments)</td></tr>
+  </table>
+
+  <a name="Bugs"></a>
+  <h2><font color="NAVY" face="SANS">Known bugs and caveats</font></h2>
+  <ul>
+    <li>There are timing, thread-priority, and/or efficiency problems.
+      The original dumb X11-only version was faster.</li>
+    <li>Simple inefficient O(N²) algorithm (no linked-cell list, no
+      neighbor list...).</li>
+    <li>Both / and \ treated as directory separator (on all platforms).</li>
+    <li>Inconsistent command line option format.</li>
+    <li>Under hard conditions (fast changes of N, density), an
+      out-of-box particle may pass unnoticed and cause various
+      errors.</li>
+  </ul>
+
+  <a name="Copy"></a>
+  <h2><font color="NAVY" face="SANS">Copying and Credits</font></h2>
+
+  <p>This application is © Jiří Kolafa. It is available under the GNU
+    General Public License Version 3
+    (https://www.gnu.org/licenses/gpl-3.0.html).</p>
+  <p>The sources of SIMOLANT can be found at
+    www.vscht.cz/fch/software/simolant/index-en.html.</p>
+  <p>
+    History:
+    <ul>
+      <li>02/2024 small bug ~O(dt) fixed in the Bussi thermostat, default timestep changed, default qtau for MTK increased<br>
+      <li>04/2023 all whites ignored in a command (<tt>cmd:</tt> field), hints removed, bug (possible string overflow) fixed<br>
+      <li>03/2022 cumulative distribution functions added to the additional recorded output<br>
+        control of these additional outputs moved to a separate widget (not in menu File)<br>
+        bug in surface tension fixed<br>
+        default thermostat changed to BUSSI (was BERENDSEN)
+      <li>12/2021 bug in surface tension introduced (returned to original good value 03/2022)<br>
+        NPT L limited to 1e10 to prevent crash in rare cases<br>
+        vertical density profile centered<br>
+        vertical density profile better NPT-compatible (Ly=sqrt(⟨L²⟩) used)</li>
+      <li>09/2021 variables _bc and _th (in Command:) renamed to th and bc<br>
+        bug fixed (Ekin for MC NPT was left from the previous step and not calculated from the T; thus, Pvir and H were incorrect)</li>
+      <li>10/2020 bugs fixed (wall force, show τ slider)</li>
+      <li>07/2020 barostats, cutoff, many GUI and control changes</li>
+      <li>10/2019 Bussi thermostat (Canonical Sampling through Velocity Rescaling) added
+      <li>05/2019 bug fixed (Creutz\quot;s bag), changes to satisfy the paranoic C++ compiler
+      <li>04/2018 bug fixed (command g=), small improvements
+      <li>03/2018 Maxwell-Boltzmann thermostat added, small improvements
+      <li>11/2017 convergence profile of total (kinetic+potential) energy added
+      <li>03/2017 comma accepted in cmd: input, toggle [,] will use decimal comma instead of period in the recorded files
+      <li>11/2016 bug fixed (rescaled window + periodic b.c. not properly shown)</li>
+      <li>10/2015 parameter input from keyboard added</li>
+      <li>03/2015 export of convergence profiles for further analysis added</li>
+    </ul>
+    Supported by:
+    <ul>
+      <li>2012–2013 TUL Liberec, EU: esf (evropský sociální fond v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost (FLTK version)</li>
+      <li>2001–2022 University of Chemistry and Technology, Prague (DOS+Turbo C/X11+*nix versions+FLTK versions)</li>
+      <li>1985–2001 Institute of Chemical Process Fundamentals (DOS+Pascal version)</li>
+    </ul>
+  </p>
+  Acknowledgements:
+  <ul>
+    <li>Ivo Nezbeda (the first version of SIMOLANT was written in Pascal
+      for a simulation seminar which was held at the Institute of
+      Chemical Technology in about 1985)</li>
+    <li>Karel Matas (FLTK advise)</li>
+  </ul>
+</body>
