@@ -155,7 +155,7 @@
     The particle–wall potential is thus</p>
 
   <p>
-    &nbsp; &nbsp; <i>u</i><sub>wall</sub>(<i>d</i>) = πρ (5/24<i>d</i>^6−1/<i>d</i>^2)
+    &nbsp; &nbsp; <i>u</i><sub>wall</sub>(<i>d</i>) = πρ (5/24 <i>d</i>^6−1/<i>d</i>^2)
   </p>
 
   <p>The repulsive wall is similar, only the attractive (negative) term is omitted.
@@ -340,9 +340,11 @@
       energy is distributed according to the Boltzmann distribution,
       prob(Ebag) = const exp(-Ebag/<i>k</i>T), hence the temperature
       is given by averaged bag energy as
+
       <p>
         &nbsp; &nbsp; Tbag = ⟨Ebag⟩/<i>k</i>.
       </p>
+
       In the right panel you will see this temperature averaged in
       blocks of one or more sweeps.  It fluctuates in the course of
       the simulation.<br>
@@ -357,16 +359,18 @@
       simulation.  Here the demon visits a termostat before every step
       and gets energy corresponding to its temperature.
       Mathematically
+
       <p>
-        &nbsp; &nbsp; Ebag=-<i>kT</i> ln(rnd),
+        &nbsp; &nbsp; Ebag = −<i>kT</i> ln(rnd),
       </p>
-      where rnd is a random number drawn uniformly from interval
-      (0,1). Once again, high-energy configurations are more probable at
-      high temperatures, low-energy configurations at low temperatures.
-      The demon's temperature (after a move) Tbag converges to the
-      thermostat temperature <i>T</i> and then fluctuates around it (on
-      average, the energy the demon returns to the thermostat equals the
-      energy he gets back).</li>
+
+      where rnd is a random number drawn uniformly from interval (0,1).
+      Once again, high-energy configurations are more probable at high
+      temperatures, low-energy configurations at low temperatures.  The
+      demon's temperature (after a move) Tbag converges to the thermostat
+      temperature <i>T</i> and then fluctuates around it (on average, the
+      energy the demon returns to the thermostat equals the energy he gets
+      back).</li>
 
     <a name="MCNPT"></a>
     <li><b>Monte Carlo N<u>P</u>T (Metropolis)</b><br>
@@ -389,10 +393,12 @@
       Molecules thus move "as in the real world".
       <br>
       Mathematically, we use the leap-frog algorithm given by formulas:
+
       <p>
         &nbsp; &nbsp; v(t+dt/2) := v(t-dt/2) + dt*f(t)/h,<br>
         &nbsp; &nbsp; r(t+dt) := r(t) + dt*v(t+dt/2),
       </p>
+
       where v(t) is the velocity (velocities of all particles)
       and r(t) position(s) at time t, respectively, and dt is the
       timestep.  Forces f(t) are calculated from positions r(t).
@@ -400,15 +406,17 @@
       The total (potential + kinetic) energy is conserved (subject to small
       method errors).  Temperature is calculated from the kinetic
       temperature by formula:
+
       <p>
         &nbsp; &nbsp; Tkin = 2 Ekin / <i>k</i> Nf,
       </p>
-      where Ekin=½ Σ m v² is the kinetic energy (both the Boltzmann
+
+      where Ekin=½ ∑ m v² is the kinetic energy (both the Boltzmann
       constant <i>k</i> and particle mass m are here equal 1) and Nf
       is the number of degrees of freedom (Nf=2N in a box; because of
       momentum conservation in the NVE MD, Berendsen and Nosé-Hoover
-      thermostats, Nf=2N-2 in the periodic boundary conditions and
-      Nf=2N-1 in the slit).
+      thermostats, Nf=2N−2 in the periodic boundary conditions and
+      Nf=2N−1 in the slit).
       <br>
       The timestep dt is determined from temperature and thermostat type
       and then kept constant.  In NVE and when temperature changes
@@ -575,7 +583,7 @@
       Line tension ("surface tension" in 2D).
 
       <p>
-        &nbsp; &nbsp; γ = Ly*(Pyy-Pxx) (makes sense only in the slab geometry).
+        &nbsp; &nbsp; γ = Ly*(Pyy−Pxx) (makes sense only in the slab geometry).
       </p>
 
       All the following options include these extended measurements, which
@@ -645,15 +653,16 @@
       Droplet radial density profile shows the full angle (0–360°)
       averaged number density from the box center (if walls are
       present), or from the droplet or slab center defined as
+
       <p>
-        &nbsp; &nbsp; (L/2π)*atan2(Σ sin(xi*2π/L),Σ cos(xi*2π/L)).
+        &nbsp; &nbsp; (L/2π)*atan2(∑ sin(xi*2π/L),∑ cos(xi*2π/L)).
       </p>
 
     <li><b><u>C</u>avity radial density profile</b><br>
       As above, but in periodic boundary conditions with respect to
       the cavity center,
       <p>
-        &nbsp; &nbsp; (L/2π)*(atan2(Σ sin(xi*2π/L),Σ cos(xi*2π/L))+π).
+        &nbsp; &nbsp; (L/2π)*(atan2(∑ sin(xi*2π/L),∑ cos(xi*2π/L))+π).
       </p>
 
   </ul>
@@ -763,8 +772,8 @@
       <font face="helvetica">Area</font> is defined (approximately) as
       follows:
       <ul>
-        <li><font face="helvetica">Area</font> = (L-1.2)² in the box (with walls)</li>
-        <li><font face="helvetica">Area</font> = L (L-1.2) in the slit</li>
+        <li><font face="helvetica">Area</font> = (L−1.2)² in the box (with walls)</li>
+        <li><font face="helvetica">Area</font> = L (L−1.2) in the slit</li>
         <li><font face="helvetica">Area</font> = L² in the periodic boundary conditions</li>
       </ul>
 
@@ -831,7 +840,7 @@
         <li> <b><u>B</u>oth</b> – Both convergence profile and the selected density/distribution function.</li>
       </ul>
 
-    
+
     <li><b>cmd:</b><br>
       Allows for entering data in the form of numbers instead of sliders.
       The format is <br>
@@ -973,13 +982,11 @@
   <a name="Copy"></a>
   <h2><font color="NAVY" face="SANS">Copying and Credits</font></h2>
 
-  <p>This application is © Jiří Kolafa. It is available under the GNU
-    General Public License Version 3
-    (https://www.gnu.org/licenses/gpl-3.0.html).</p>
-  <p>The sources of SIMOLANT can be found at
-    www.vscht.cz/fch/software/simolant/index-en.html.</p>
+  <p>This application is © Jiří Kolafa. It is available under the
+    <a href="https://www.gnu.org/licenses/gpl-3.0.html">GNU General Public License Version 3</a>
+  <p>The sources of SIMOLANT can be found on <a href="https://github.com/kolafaj/SIMOLANT">GitHub</a>.</p>
   <p>
-    History:
+  <h3><font color="navy" face="sans"><i>History</i></font></h3>
     <ul>
       <li>02/2024 small bug ~O(dt) fixed in the Bussi thermostat, default timestep changed, default qtau for MTK increased<br>
       <li>04/2023 all whites ignored in a command (<tt>cmd:</tt> field), hints removed, bug (possible string overflow) fixed<br>
@@ -996,7 +1003,7 @@
       <li>10/2020 bugs fixed (wall force, show τ slider)</li>
       <li>07/2020 barostats, cutoff, many GUI and control changes</li>
       <li>10/2019 Bussi thermostat (Canonical Sampling through Velocity Rescaling) added
-      <li>05/2019 bug fixed (Creutz\quot;s bag), changes to satisfy the paranoic C++ compiler
+      <li>05/2019 bug fixed (Creutz's bag), changes to satisfy the paranoic C++ compiler
       <li>04/2018 bug fixed (command g=), small improvements
       <li>03/2018 Maxwell-Boltzmann thermostat added, small improvements
       <li>11/2017 convergence profile of total (kinetic+potential) energy added
@@ -1005,14 +1012,14 @@
       <li>10/2015 parameter input from keyboard added</li>
       <li>03/2015 export of convergence profiles for further analysis added</li>
     </ul>
-    Supported by:
+  <h3><font color="navy" face="sans"><i>Supported by</i></font></h3>
     <ul>
       <li>2012–2013 TUL Liberec, EU: esf (evropský sociální fond v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost (FLTK version)</li>
       <li>2001–2022 University of Chemistry and Technology, Prague (DOS+Turbo C/X11+*nix versions+FLTK versions)</li>
       <li>1985–2001 Institute of Chemical Process Fundamentals (DOS+Pascal version)</li>
     </ul>
-  </p>
-  Acknowledgements:
+
+  <h3><font color="navy" face="sans"><i>Acknowledgements</i></font></h3>
   <ul>
     <li>Ivo Nezbeda (the first version of SIMOLANT was written in Pascal
       for a simulation seminar which was held at the Institute of

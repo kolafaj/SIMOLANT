@@ -268,9 +268,9 @@ static void cb_help(Fl_Widget* w,void *data)
   else
     fl_alert("\
 Missing manual \"simolant.html\".\n\
-Downolad it from\n\
-http://www.vscht.cz/fch/software/simolant/index-en.html\n\
-and copy to the directory of the simolant executable.");
+Run SIMOLANT from the directory where\n\
+it has been installed, or download it from\n\
+https://github.com/kolafaj/SIMOLANT.");
 }
 
 static void cb_about(Fl_Widget* w,void *data)
@@ -278,8 +278,9 @@ static void cb_about(Fl_Widget* w,void *data)
   fl_message("SIMOLANT " VERSION ", © Jiří Kolafa\n\
 License:\n\
     GNU General Public License 3\n\
-Main page:\n\
-    http://www.vscht.cz/fch/software/simolant/index-en.html\n\
+Where is:\n\
+    https://github.com/kolafaj/SIMOLANT\n\
+    http://old.vscht.cz/fch/software/simolant/index-en.html\n\
 Supported by:\n\
     1985–2001 Institute of Chemical Process Fundamentals\n\
     2001–2020 University of Chemistry and Technology, Prague\n\
@@ -287,7 +288,8 @@ Supported by:\n\
         v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost\n\
 Acknowledgements:\n\
     Ivo Nezbeda (pioneering simulation workshop in ~1985)\n\
-    Karel Matas (FLTK advise)");
+    Karel Matas (FLTK advise)\n\
+    students");
 }
 
 #define bracketval(VAL,FROM,TO) do { \
