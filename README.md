@@ -49,4 +49,13 @@ _In Windows, do not run directly from "folder simolant-win32"!_
 * simolant-amd64.zip - for linux (64 bit)
 * simolant-win32.zip - for Microsoft Windows (32 bit)
 
+## New in this version
+
+* help window and panel enlarged
+* Tinker menu added
+* timeouts based on the measured simulation times
+* new button [invert] walls
+* CSV output added
+* Okabe and Ito colorblind-safe palette
+
 ![SIMOLANT](sources/screenshot.png)
