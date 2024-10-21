@@ -1,8 +1,8 @@
+// Simulation code
 // This code was originally written in Pascal (with Turbo graphics),
 // then rewritten to C (with Turbo graphics),
 // and then Turbo-graphics was emulated by X11.
 // This version includes graphics rewritten to FLTK.
-// @-codes refer to the 3D algorithm in the MACSIMUS manual
 
 #define MAXN 2000     // max # of atoms: static arrays used
 #define MINRHO 0.03   // NUCLEATION: 0.04
@@ -23,17 +23,23 @@
 
 #define DSCALE 7 // MC displacement d (in units of Lh) d=L/2*exp(min MC displacement d, in the unit of L/2, for log-based slider
 
+// List of variables exported to the 1st line of sim-files;
+// if changed, also the formats must be updated.
+#define SIMVARS N,bc,walls,T,L,walldens,dt,d,thermostat,P,dV
+#define STR(X) #X
+
 typedef struct {
   double x,y;
 } vector;
 
 double gravity;  /* acceleration of gravity */
-double walldens=0.75*PI; /* density of smoothed atoms on walls = 0.75 ~ triple point liquid */
+double walldens=0.75*PI; /* rho_wall = walldens/PI = density of smoothed 
+                            atoms on walls; 0.75 ~ triple point liquid */
 int N=300; /* # of atoms */
 double L=20,Lh; /* box size, Lh=L/2 */
 double T=3; /* temperature as NVT parameter */
 double P=1; /* pressure as NPT parameter */
-double qtau=10; /* tauP/tau, for Berendsen and MTK barostat */
+double qtau=5; /* tauP/tau, for Berendsen and MTK barostat */
 double Tk; /* Tk=kinetic T (MD) or demon T (Creutz MC) */
 double bag; /* Creutz daemon bag: static */
 double d; /* displacement, in Lh=L/2 */
@@ -47,7 +53,7 @@ double Econserved,Ekin; /* total energy incl. extended degrees of freedom */
 int justreset=1; /* reset scaling of energy convergence profile */
 int debug=0; /* verbose debug mode */
 int circlemethod=2; /* 0=fl_pie  1=fl_circle  2=custom of fl_line */
-int iblock,block=30,nit;
+int iblock,block; // stride moved to speed.stride
 int delayed_y_color=0;
 
 // it's called thermostat, but it includes NVE and NPT
@@ -328,14 +334,15 @@ void molblack() /************************************************** molblack */
   loop (i,0,N) molcol[i]=FL_BLACK;
 }
 
-static int nbrcol[8]={FL_DARK_GREEN,
-                      FL_DARK_YELLOW,
-                      FL_DARK_CYAN,
-                      FL_BLUE,
-                      FL_MAGENTA,
-                      FL_RED,
-                      FL_BLACK, /* 6 */
-                      FL_YELLOW };
+static unsigned int nbrcol[8]={
+  OI_ORANGE,
+  OI_CYAN,
+  OI_GREEN,
+  OI_LILAC,
+  OI_BLUE,
+  OI_RED,
+  OI_BLACK, /* 6 */
+  OI_YELLOW };
 
 void y_split() /**************************************************** y_split */
 // two colors by y-coordinate
@@ -352,7 +359,7 @@ void y_split() /**************************************************** y_split */
 
   if (debug) printf("%d red  %d blue  N=%d  ymedian/L=%g\n",nred,N-nred,N,ymedian/L);
 
-  loop (i,0,N) molcol[i]=r[i].y>ymedian ? FL_RED : FL_BLUE;
+  loop (i,0,N) molcol[i]=r[i].y>ymedian ? OI_RED : OI_BLUE;
 }
 
 void randomcolors() /****************************************** randomcolors */
@@ -649,14 +656,13 @@ void MDreset(thermostat_t th) /************************************* MDreset */
   dtadjset();
 }
 
-void writefile(const char *fn) /********************************** writefile */
+void writesim(const char *fn) /************************************ writesim */
 {
   FILE *out=fl_fopen(fn,"wt");
   int i;
 
   if (out) {
-    fprintf(out,"%d %d %d %g %g %g %g %g %d %g %g # N,bc,walls,T,L,walldens,dt,d,thermostat,P,dV\n",
-            N,bc,walls,T,L,walldens,dt,d,thermostat,P,dV);
+    fprintf(out,"%d %d %d %g %g %g %g %g %d %g %g # " STR(SIMVARS) "\n", SIMVARS);
     fprintf(out,"#  x         y\n");
     loop (i,0,N) fprintf(out,"%9.5f %9.5f\n",r[i].x,r[i].y);
     fclose(out); }
@@ -664,7 +670,7 @@ void writefile(const char *fn) /********************************** writefile */
 
 void MDerror(void) /************************************************ MDerror */
 {
-  if (debug) writefile("debug.sim");
+  if (debug) writesim("debug.sim");
   if (!mauto) mymessage=1;
   mcstart=256;
   if (N>500) mcstart=128000/N;
@@ -672,11 +678,11 @@ void MDerror(void) /************************************************ MDerror */
   setd->value(1);
   mauto=thermostat;
   thermostat = isNPT(mauto) ? MCNPT : METROPOLIS;
-  
+
   if (std::isnan(L) || L>sqrt(N)*100) {
     // NPT failed (e.g., P<0) => total reset
     int i;
-    
+
     L=sqrt(N)*10;
     sliders.rho->value(log(L2rho(L)));
     loop (i,0,N) {
@@ -697,23 +703,23 @@ void debugtimer(const char *info) /****************************** debugtimer */
 timing (all times are in s):\n\
 * speed: slider \'simulation speed\' value\n\
 * timer (frame delay): use slider \'simulation speed\'\n\
-* nit=MDsteps/display: use slider \'simulation speed\' (to right)\n\
+* stride=MDsteps/display: use slider \'simulation speed\' (to right)\n\
 * block: use slider \'measurement block\'\n");
-    fprintf(stderr,"SIM nsteps clockstep  step  displaystep timer  nit block speed   abstime\n");
+    fprintf(stderr,"SIM nsteps clockstep tvstep  dispstep  timer stride block speed   abstime\n");
     mylast=mytime();
     last=clock(); }
   else if (ns%debug==0) {
     unsigned t=clock();
     double myt=mytime();
 
-    fprintf(stderr,"%s%6d  %7.3f %9.6f %8.6f   %7.5f  %2d %3d  %6.3f %.4f\n",
+    fprintf(stderr,"%s%6d  %9.6f %9.6f %7.5f   %7.5f  %2d %3d %5.2f %.4f\n",
             info,
             ns,
             (double)(t-last)/((double)CLOCKS_PER_SEC*debug),
             (myt-mylast)/debug,
-            (myt-mylast)*nit/debug,
-            timerdelay,
-            nit,
+            (myt-mylast)*speed.stride/debug,
+            speed.timerdelay,
+            speed.stride,
             block,
             sliders.speed->value(),
             myt);
@@ -812,7 +818,8 @@ void MDstep(void) /************************************************** MDstep */
 
   if (thermostat==NOSE_HOOVER || thermostat==MTK) {
     /* velocity predictor TRVP(k=1), and acceleration modification
-       see J. Chem. Theory Comput. 2011, 7, 3596–3607 */
+       see J. Chem. Theory Comput. 2011, 7, 3596–3607 
+       @-codes below refer to the 3D MTK algorithm in the MACSIMUS manual */
 
     vf=xivpred=1.5*xiv-0.5*xivlast; // @4
     xivlast=xiv;
@@ -905,9 +912,9 @@ Switching to BOX boundary conditions...");
       break;
 
     case BUSSI: {
-      /* canonical sampling through velocity rescaling 
+      /* canonical sampling through velocity rescaling
          DOI: 10.1016/j.cpc.2008.01.006 */
-      double c=exp(-dt/tau); // c 
+      double c=exp(-dt/tau); // c
       double Rt=rndgauss(); // R(t)
       double Si=0; // S_{Nf-1}
 
@@ -972,7 +979,7 @@ Switching to BOX boundary conditions...");
       //      printf("%g %g %g %g %g\n",Econserved+Upot,Ekin,Upot,xikin,xipot);
       break;
 
-    default:; /* to make the compiler happy */ 
+    default:; /* to make the compiler happy */
   }
 
   t+=dt;
@@ -1120,7 +1127,7 @@ void MCsweep(void) /************************************************ MCsweep */
             deltaU+=u(rr*ff)-u(rr); }
           break;
         case SLIT:
-          if (isni) 
+          if (isni)
             loop (j,0,i) {
               rr=Sqrni(r[i].x-r[j].x)+Sqr(r[i].y-r[j].y);
               deltaU+=u(rr*ff)-u(rr); }
@@ -1157,7 +1164,7 @@ void MCsweep(void) /************************************************ MCsweep */
         mymessage=2;
         f=0.8; /* shrink box */
         rr/=f*f;
-        if (debug) writefile("debug.sim");
+        if (debug) writesim("debug.sim");
         thermostat=METROPOLIS;
         d=0.3/Lh; }
       if (L*f>1e10) ff=1; // added in 12/2021
@@ -1204,21 +1211,23 @@ void neighbors() /************************************************ neighbors */
     molcol[i]=nbrcol[nbr]; }
 }
 
-// return extension .ext
+// return the last single extension .ext (last .)
+// FILE. => zero-length string
+// BUG: \ is treated as directory seperator in linux
 const char *getext(const char *fn) /********************************* getext */
 {
   const char *c,*d;
 
   for (c=fn,d=NULL; *c; c++) {
     if (*c=='.') d=c;
-    // do not know how the directory separator works over platforms...
+    // I do not know how the directory separator works over platforms...
     if (*c=='/') d=NULL;
     if (*c=='\\') d=NULL; }
 
-  return d?d:"";
+  return d;
 }
 
-void loadcfg(const char *fn) /************************************** loadcfg */
+void loadsim(const char *fn) /************************************** loadsim */
 {
   FILE *in=fl_fopen(fn,"rt");
   char line[256];
@@ -1226,8 +1235,12 @@ void loadcfg(const char *fn) /************************************** loadcfg */
 
   if (in) {
     if (fgets(line,256,in)) {
+      if (!strstr(line,STR(SIMVARS))) {
+        fl_alert("read \"%s\": is not a SIMOLANT file",fn);
+        fclose(in);
+        return; }
       sscanf(line,"%d %d %d %lf %lf %lf %lf %lf %d %lf %lf",
-             //  writefile:  N,bc,walls,T,L,walldens,dt,d,thermostat,P);
+             // see macso SIMVARS for the list of variables
              &N,(int*)&bc,&walls,&T,&L,&walldens,&dt,&d,(int*)&thermostat,&P,&dV); }
     if (!fgets(line,256,in)) {
       fl_alert("read \"%s\": bad header or bad format",fn);

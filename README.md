@@ -29,7 +29,7 @@ Molecular simulation in 2D
 
 * _Student work_
 
-  * [Verification of the Clausius-Clapeyrom equation](http://old.vscht.cz/fch/en/tools/kolafa/tul/simenw1.pdf)
+  * [Verification of the Clausius-Clapeyron equation](http://old.vscht.cz/fch/en/tools/kolafa/tul/simenw1.pdf)
   * [Pressure outside a droplet/inside cavity (Kelvin equation)](http://old.vscht.cz/fch/en/tools/kolafa/simenw3.pdf)
   * Surface / interfacial tension, contact angle
 

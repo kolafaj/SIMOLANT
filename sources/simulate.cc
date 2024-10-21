@@ -1,13 +1,14 @@
+// The main simulation loop:
+// Simulate.draw() calculates MC/MD erc ans shows moleciles
+// Also, the timer control is here
 class Simulate : public Fl_Box {
   void get_data () {
     int i;
 
     // get information from sliders; cf. cb_parms()
-    nit=(int)exp(1.1*sliders.speed->value());
-    if (nit<=0) nit=1;
-    timerdelay=TIMERDELAY*exp(-1.609438*sliders.speed->value());
+    slider2speed(sliders.speed->value());
 
-    //    printf("%d %d %g\n",time(NULL),nit,timerdelay);
+    //    printf("%d %d %g\n",time(NULL),stride,timerdelay);
     block=pow(10,sliders.block->value())+0.5;
 
     T=exp(sliders.T->value());
@@ -28,7 +29,7 @@ class Simulate : public Fl_Box {
         MDreset(mauto);
         mauto=AUTO; /* = 0 */ }
       else
-        mcstart-=nit; }
+        mcstart-=speed.stride; }
 
     //    insdel((int)(exp(sliders.N->value())+0.5));
     insdel((int)(pow(sliders.N->value(),NPOW)+0.5));
@@ -163,15 +164,15 @@ class Simulate : public Fl_Box {
     Pcfg.fwyL/=L;
   }
 
-  void draw() {
+  void draw() { // in addition to drawing, all calculations are called from here
     int i;
     double V=0; // to suppress warning uninitilized
 
     get_data();
     if (run->value()) {
-      loop (i,0,nit) {
+      loop (i,0,speed.stride) {
 
-        if (i==nit-1) {
+        if (i==speed.stride-1) {
           /* measurements BEFORE the last cycle so that Ekin is in sync 
              with Upot AFTER this loop has finished */
           if (measure) {
@@ -193,13 +194,13 @@ class Simulate : public Fl_Box {
 
         if (isMD(thermostat)) {
           MDstep();
-          sum.Tk+=Tk/nit; }
+          sum.Tk+=Tk/speed.stride; }
         else {
           accepted=Vaccepted=0;
           MCsweep();
-          sum.ar+=(double)accepted/(N*nit);
-          sum.Var+=(double)Vaccepted/nit; }
-      } // nit
+          sum.ar+=(double)accepted/(N*speed.stride);
+          sum.Var+=(double)Vaccepted/speed.stride; }
+      } // speed.stride
 
       /* last cycle finished, both Upot and Ekin are in sync */
       if (thermostat==NVE) {
@@ -216,7 +217,7 @@ class Simulate : public Fl_Box {
 
     else
       // simulation not running due to button [run] in off state
-      usleep(extradelay+10000);
+      usleep(speed.extradelay+5000);
 
     norm();
 
@@ -258,8 +259,8 @@ class Simulate : public Fl_Box {
 
       // left wall
       if (bc==BOX) {
-        if (uwallx==uwalla) fl_color(FL_GREEN);
-        else fl_color(FL_RED);
+        if (uwallx==uwalla) fl_color(OI_GREEN);
+        else fl_color(OI_RED);
         fl_line_style(FL_SOLID,BORDER,NULL); }
       else {
         fl_color(FL_GRAY);
@@ -268,15 +269,15 @@ class Simulate : public Fl_Box {
 
       // right wall
       if (bc==BOX) {
-        if (uwallxL==uwalla) fl_color(FL_GREEN);
-        else fl_color(FL_RED); }
+        if (uwallxL==uwalla) fl_color(OI_GREEN);
+        else fl_color(OI_RED); }
       // else GRAY+DASH set above
       fl_line(boxsize+3*BORDER/2,MENUH+BORDER,boxsize+3*BORDER/2,boxsize+MENUH+BORDER);
 
       // top wall
       if (bc!=PERIODIC) {
-        if (uwally==uwalla) fl_color(FL_GREEN);
-        else fl_color(FL_RED);
+        if (uwally==uwalla) fl_color(OI_GREEN);
+        else fl_color(OI_RED);
         fl_line_style(FL_SOLID,BORDER,NULL); }
       else {
         fl_color(FL_GRAY);
@@ -285,8 +286,8 @@ class Simulate : public Fl_Box {
 
       // bottom wall
       if (bc!=PERIODIC) {
-        if (uwallyL==uwalla) fl_color(FL_GREEN);
-        else fl_color(FL_RED);
+        if (uwallyL==uwalla) fl_color(OI_GREEN);
+        else fl_color(OI_RED);
         fl_line_style(FL_SOLID,BORDER,NULL); }
       // else GRAY+DASH set above
       fl_line(BORDER,boxsize+MENUH+3*BORDER/2,boxsize+BORDER,boxsize+MENUH+3*BORDER/2);
@@ -386,16 +387,17 @@ class Simulate : public Fl_Box {
         } // circlemethod
       } } // draw simulation cell
 
-    usleep(extradelay);
+    // usleep(speed.extradelay);
 
     fl_line_style(FL_SOLID,0,NULL);
     if (mymessage) {
       int atx=BORDER+6,aty=BORDER+MENUH+35;
 
-      fl_color(FL_YELLOW);
+      fl_color(OI_YELLOW);
       fl_rectf(BORDER,BORDER+MENUH,640,90);
       fl_font(FL_HELVETICA,32);
-      fl_color(FL_RED);
+      fl_color(OI_RED);
+      // see Fl::repeat_timeout() below
       if (mymessage==1) {
         fl_draw("Molecular Dynamics failed!",atx,aty); aty+=40;
         fl_draw("Switching temporarily to Monte Carlo…",atx,aty); }
@@ -408,6 +410,8 @@ class Simulate : public Fl_Box {
 
   static void timer_callback(void *userdata) {
     Simulate *sim = (Simulate*)userdata;
+    static double tcycle=1/speed.FPS;
+    clock_t c0=clock();
 
     if (isMC(thermostat) && !setd->value())
       sliders.d->show();
@@ -442,6 +446,7 @@ class Simulate : public Fl_Box {
         buttons.wallxL->show();
         buttons.wally->show();
         buttons.wallyL->show();
+        invertwalls->show();
         sliders.g->show();
         break;
       case SLIT:
@@ -449,6 +454,7 @@ class Simulate : public Fl_Box {
         buttons.wallxL->hide();
         buttons.wally->show();
         buttons.wallyL->show();
+        invertwalls->show();
         sliders.g->show();
         break;
       case PERIODIC:
@@ -456,42 +462,54 @@ class Simulate : public Fl_Box {
         buttons.wallxL->hide();
         buttons.wally->hide();
         buttons.wallyL->hide();
+        invertwalls->hide();
         sliders.g->value(0);
         sliders.g->hide();
         break;
     }
     if (fabs(sliders.g->value())<0.0017) sliders.g->value(0);
 
-    sim->redraw();
+    sim->redraw(); // → sim->draw() = all calculations and molecule drawing
     panel->infopanel->redraw();
     panel->resultpanel->redraw();
     menu->redraw();
 
-    record=buttons.meas->value();
+    files.record=buttons.record->value();
+    if (files.record && measure==NONE) measure=QUANTITIES;
     //    fprintf(stderr,"draw: head=%p %g record=%d\n",head,t,record);
-    if (!record && head) {
+    if (!files.record && head) {
       /* just turned off */
-      record=showclearM();
-      buttons.meas->value(record); // continue (will be turned on again)
+      files.record=showclearM();
+      buttons.record->value(files.record); // continue (will be turned on again)
     }
     Fl::flush();
     //    Fl::check();
 
-    if (debug) fprintf(stderr,"                                           timeout repeated at %.4f\n",mytime());
+    if (debug) fprintf(stderr,"                                          timeout repeated at %.4f\n",mytime());
 
+    /* info message red-on-yellow pops up for 2.5 s */
     if (mymessage) {
-      static double msgdelay=4;
-      if (msgdelay>2) msgdelay-=1;
       mymessage=0;
-      Fl::repeat_timeout(msgdelay, timer_callback, userdata); }
-    else
-      Fl::repeat_timeout(timerdelay, timer_callback, userdata);
+      Fl::repeat_timeout(2.5, timer_callback, userdata); }
+    else {
+      double t=(clock()-c0)/(double)CLOCKS_PER_SEC;
+      if (t>2*tcycle) tcycle*=2;
+      else if (t<0.5*tcycle) tcycle*=0.5;
+      else tcycle=sqrt(tcycle*sqrt(tcycle*t));
+      /* tcycle is the estimated CPU time of 1 cycle, smoothed */
+      //      fprintf(stderr,"tcycle=%g\n",tcycle);
+      // calculate the timeout: the minimum is speed.MINTIMEOUT/speed.FPS
+      t=speed.timerdelay-tcycle;
+      if (t<speed.MINTIMEOUT/speed.FPS) t=speed.MINTIMEOUT/speed.FPS;
+      Fl::repeat_timeout(t, timer_callback, userdata); }
   }
 public:
   Simulate(int X,int Y,int W,int H) : Fl_Box(X,Y,W,H) {
+    // I cannot find this method in the manual, but without
+    // box(FL_FLAT_BOX) the window smashes everything together
     box(FL_FLAT_BOX);
     color(FL_WHITE);
-    //    color(FL_BACKGROUND2_COLOR);
-    Fl::add_timeout(timerdelay, timer_callback, (void*)this);
+    //    color(FL_BACKGROUND2_COLOR); // gray
+    Fl::add_timeout(speed.timerdelay, timer_callback, (void*)this);
   }
 };

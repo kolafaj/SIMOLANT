@@ -1,17 +1,17 @@
-// File menu (also save measurements)
+// Callbacks of most widgets are here
 
 // replacements for deprecated fl_ask
-static int fl_ask1(const char *fmt,const char *arg)
+static int fl_ask1(const char *fmt,const char *arg) /*************** fl_ask1 */
 {
   return !fl_choice(fmt,"Yes","No",0,arg);
 }
 
-#ifdef NATIVE
-static void cb_open(Fl_Widget* w,void *data)
+// choose and load a sim-file (a configuration)
+static void cb_load(Fl_Widget* w,void *data) /********************** cb_load */
 {
   const char *fn=NULL;
-
   Fl_Native_File_Chooser fnfc;
+
   fnfc.title("Open");
   fnfc.type(Fl_Native_File_Chooser::BROWSE_FILE);
   fnfc.filter("SIMOLANT\t*.sim");
@@ -23,14 +23,16 @@ static void cb_open(Fl_Widget* w,void *data)
 
   if (debug) fprintf(stderr,"open file: \"%s\"\n",fn);
 
-  if (fn) loadcfg(fn);
+  if (fn) loadsim(fn);
 }
 
-static void cb_save(Fl_Widget* w,void *data)
+// choose/type filename and save a sim-file (a configuration)
+static void cb_save(Fl_Widget* w,void *data) /********************** cb_save */
 {
   const char *fn=NULL;
-
+  char *fnext=NULL;
   Fl_Native_File_Chooser fnfc;
+
   fnfc.title("Save as");
   fnfc.type(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
   fnfc.filter("SIMOLANT\t*.sim");
@@ -46,26 +48,30 @@ static void cb_save(Fl_Widget* w,void *data)
     const char *ext=getext(fn);
     if (!ext || strcmp(ext,".sim")) {
       // add extension .sim (ALWAYS case-sensitive)
-      char *fnx=(char*)malloc(strlen(fn)+5);
-      strcpy(fnx,fn); strcat(fnx,".sim");
-      fn=fnx; /* (small) memory leak... */ }
+      fnext=(char*)malloc(strlen(fn)+5);
+      sprintf(fnext,"%s.sim",fn);
+      fn=fnext; }
 
     FILE *out=fl_fopen(fn,"rt");
 
     if (out) {
       if (!fl_ask1("File \"%s\" exists. Overwrite?",fn)) {
         fclose(out);
-        return; }
+        goto ret_cb_save; }
       fclose(out); }
 
-    writefile(fn); }
+    writesim(fn);
+  ret_cb_save:
+    if (fnext) free(fnext);
+  }
 }
 
-static void cb_record(Fl_Widget* w,void *data)
+// type protocol name or choose in *.txt files (extension .txt will be removed)
+static void cb_protocol(Fl_Widget* w,void *data) /************** cb_protocol */
 {
   const char *fn=NULL;
-
   Fl_Native_File_Chooser fnfc;
+
   fnfc.title("Name of the measurement protocol (start/stop [record])");
   fnfc.type(Fl_Native_File_Chooser::BROWSE_SAVE_FILE);
   fnfc.filter("TEXT\t*.txt");
@@ -78,114 +84,29 @@ static void cb_record(Fl_Widget* w,void *data)
   if (debug) fprintf(stderr,"record file: \"%s\"\n",fn);
 
   if (fn) {
-    const char *ext=getext(fn);
-    if (!ext || strcmp(ext,".txt")) {
-      // add extension .txt (ALWAYS case-sensitive)
-      char *fnx=(char*)malloc(strlen(fn)+5);
-      strcpy(fnx,fn); strcat(fnx,".txt");
-      fn=fnx; /* (small) memory leak... */ }
-    else
-      fn=strdup(fn);
+    int sl=strlen(fn);
 
-    protocol=(char*)fn;
+    if (sl>243) {
+      //     456789012345
+      // NAME-RDF####.csv accepted
+      fl_alert("filename too long");
+      return; }
+
+    strcpy(files.protocol,fn);
+    // const removed because files.protocol is not const
+    files.ext=(char*)getext(files.protocol);
+    if (files.ext && !strcmp(files.ext,".txt")) *files.ext=0;
+    else files.ext=files.protocol+sl;
+    files.nmeas=1;
+    fl_alert("\
+The protocol name has been changed\n\
+If the following files:\n\
+%s.txt\n\
+%s.csv\n\
+exist, they will be overwitten on recording without\n\
+warning and measurements will be numbered from 1",files.protocol,files.protocol);
   }
 }
-
-#else
-
-static void cb_open(Fl_Widget* w,void *data)
-{
-  Fl_File_Chooser *fb=new Fl_File_Chooser(".","*.sim",Fl_File_Chooser::SINGLE,"Open");
-
-  fb->show();
-  while (fb->shown()) { Fl::wait(); }
-
-  const char *fn=fb->value();
-
-  if (debug) fprintf(stderr,"open file: \"%s\"\n",fn);
-
-  if (fn) loadcfg(fn);
-}
-
-static void cb_save(Fl_Widget* w,void *data)
-{
-  Fl_File_Chooser *fb=new Fl_File_Chooser(".","*.sim",Fl_File_Chooser::CREATE,"Save");
-
-  //  fb->type(FL_NORMAL_BROWSER);
-  fb->preview(0);
-  fb->show();
-  while (fb->shown()) { Fl::wait(); }
-
-  const char *fn=fb->value();
-  const char *ext=getext(fn);
-
-  if (debug) fprintf(stderr,"save file: \"%s\"\n",fn);
-
-  if (fn) {
-    if (!ext || strcmp(ext,".sim")) {
-      // add extension .sim (ALWAYS case-sensitive)
-      char *fnx=(char*)malloc(strlen(fn)+5);
-      strcpy(fnx,fn); strcat(fnx,".sim");
-      fn=fnx; /* (small) memory leak... */ }
-
-    FILE *out=fl_fopen(fn,"rt");
-
-    if (out) {
-      if (!fl_ask1("File \"%s\" exists. Overwrite?",fn)) {
-        fclose(out);
-        return; }
-      fclose(out); }
-
-    out=fl_fopen(fn,"wt");
-    int i;
-
-    /* see also writefile (NATIVE) */
-    if (out) {
-      fprintf(out,"%d %d %d %g %g %g %g %g %d %g 0 # N,bc,walls,T,L,walldens,dt,d,thermostat, reserved,reserved\n",
-              N,bc,walls,T,L,walldens,dt,d,thermostat,P);
-      fprintf(out,"#  x         y\n");
-      loop (i,0,N) fprintf(out,"%9.5f %9.5f\n",r[i].x,r[i].y);
-      fclose(out); } }
-}
-
-static void cb_record(Fl_Widget* w,void *data)
-{
-  Fl_File_Chooser *fb=new Fl_File_Chooser(".","*.txt",Fl_File_Chooser::CREATE,"Name of the measurement protocol (start/stop [record])");
-
-  //  fb->type(FL_NORMAL_BROWSER);
-  fb->preview(0);
-  fb->show();
-  while (fb->shown()) { Fl::wait(); }
-
-  const char *fn=fb->value();
-  const char *ext=getext(fn);
-
-  if (fn) {
-    const char *ext=getext(fn);
-    if (!ext || strcmp(ext,".txt")) {
-      // add extension .txt (ALWAYS case-sensitive)
-      char *fnx=(char*)malloc(strlen(fn)+5);
-      strcpy(fnx,fn); strcat(fnx,".txt");
-      fn=fnx; /* (small) memory leak... */ }
-    else
-      fn=strdup(fn);
-
-    protocol=(char*)fn;
-  }
-}
-#endif
-
-#ifdef INCL
-static void cb_cp(Fl_Widget* w,void *data)
-{
-  writeCP=fl_ask1("Include full convergence profile in the recorded protocol?",protocol);
-}
-
-static void cb_df(Fl_Widget* w,void *data)
-{
-  writeDF=fl_ask1("Include RDF, y- or r-density functions in the recorded protocol?",protocol);
-}
-#endif
 
 static void cb_exit(Fl_Widget* w,void *data)
 {
@@ -194,13 +115,28 @@ static void cb_exit(Fl_Widget* w,void *data)
     Fl::first_window()->hide();
 }
 
-static void cb_resetchoices(Fl_Widget* w,void *data)
+static void cb_resetview(Fl_Widget* w,void *data)
 {
   drawmode->value(0);
   colormode->value(0);
   molsize->value(0);
   justreset=1;
   itot=HISTMAX+1;
+}
+
+static void cb_invertwalls(Fl_Widget* w,void *data)
+{
+  buttons.wallx->value(!buttons.wallx->value());
+  buttons.wallxL->value(!buttons.wallxL->value());
+  buttons.wally->value(!buttons.wally->value());
+  buttons.wallyL->value(!buttons.wallyL->value());
+
+  walls=(buttons.wallx->value())
+    + 2*(buttons.wallxL->value())
+    + 4*(buttons.wally->value())
+    + 8*(buttons.wallyL->value());
+
+  setwalls();
 }
 
 // Method menu
@@ -257,7 +193,7 @@ static void cb_dprofile(Fl_Widget*, void *data) { measure=RPROFILE; }
 static void cb_cprofile(Fl_Widget*, void *data) { measure=CPROFILE; }
 
 // Help menu
-static void cb_help(Fl_Widget* w,void *data)
+static void cb_help(Fl_Widget* w,void *data) /********************** cb_help */
 {
   FILE *f=fl_fopen("simolant.html","rt");
 
@@ -273,7 +209,7 @@ it has been installed, or download it from\n\
 https://github.com/kolafaj/SIMOLANT.");
 }
 
-static void cb_about(Fl_Widget* w,void *data)
+static void cb_about(Fl_Widget* w,void *data) /******************** cb_about */
 {
   fl_message("SIMOLANT " VERSION ", © Jiří Kolafa\n\
 License:\n\
@@ -292,11 +228,20 @@ Acknowledgements:\n\
     students");
 }
 
-#define bracketval(VAL,FROM,TO) do { \
+// Tinker menu
+static void cb_fps15(Fl_Widget*, void *data) { speed.FPS=15; }
+static void cb_fps30(Fl_Widget*, void *data) { speed.FPS=30; }
+static void cb_fps60(Fl_Widget*, void *data) { speed.FPS=60; }
+static void cb_timeout99(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.99; }
+static void cb_timeout50(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.50; }
+static void cb_timeout25(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.25; }
+
+// parameter value normalized to range [FROM,TO]
+#define BRACKETVAL(VAL,FROM,TO) do { \
   if (VAL<FROM) VAL=FROM; \
   if (VAL>TO) VAL=TO; } while(0)
 
-/* read in a parameter from a string */
+// read in a parameter from a string
 static void read_parm(char *cmd) /******************************** read_parm */
 {
   char *nr;
@@ -317,59 +262,59 @@ static void read_parm(char *cmd) /******************************** read_parm */
     buttons.parms->value("");
 
     if (!strcmp(cmd,"t")) {
-      bracketval(val,1e-9,99);
+      BRACKETVAL(val,1e-9,99);
       sliders.T->value(log(val)); }
     else if (!strcmp(cmd,"tau") || !strcmp(cmd,"τ")) {
-      bracketval(val,0.01,1e9);
+      BRACKETVAL(val,0.01,1e9);
       sliders.tau->value(log(val)); }
     else if (!strcmp(cmd,"d")) {
       /* in the units of L */
-      bracketval(val,1e-3,1);
+      BRACKETVAL(val,1e-3,1);
       sliders.d->value(log(val)/DSCALE); }
     else if (!strcmp(cmd,"dv")) {
       /* MC volume change */
-      bracketval(val,1e-3,0.1);
+      BRACKETVAL(val,1e-3,0.1);
       dV=val; }
     else if (!strcmp(cmd,"g")) {
-      bracketval(val,-9,9);
+      BRACKETVAL(val,-9,9);
       sliders.g->value(val);}
     else if (!strcmp(cmd,"rho") || !strcmp(cmd,"ρ")) {
-      bracketval(val,0.0001,2);
+      BRACKETVAL(val,0.0001,2);
       sliders.rho->value(log(val)); }
     else if (!strcmp(cmd,"p")) {
-      bracketval(val,-9,99);
+      BRACKETVAL(val,-9,99);
       sliders.P->value(val); }
     else if (!strcmp(cmd,"n")) {
-      bracketval(ival,1,MAXN);
+      BRACKETVAL(ival,1,MAXN);
       sliders.N->value(pow(ival,1./NPOW)); }
     else if (!strcmp(cmd,"dt") || !strcmp(cmd,"h")) {
       dtfixed=val;
-      if (val) bracketval(val,1e-9,1);
+      if (val) BRACKETVAL(val,1e-9,1);
       else dtadjset(); }
     else if (!strcmp(cmd,"stride")) {
-      nit=ival;
-      bracketval(ival,1,99);
-      timerdelay=TIMERDELAY*exp(-1.609438*nit);
-      sliders.speed->value(log(nit)/1.1+1e-5); }
+      speed.stride=val;
+      BRACKETVAL(val,-10,100);
+      slider2speed(val);
+      sliders.speed->value(val); }
     else if (!strcmp(cmd,"block")) {
-      bracketval(ival,1,1000);
+      BRACKETVAL(ival,1,1000);
       block=ival;
       sliders.block->value(log10(block)); }
     /* no sliders from here: */
     else if (!strcmp(cmd,"qtau") || !strcmp(cmd,"qτ")) {
-      bracketval(val,0.5,1e9);
+      BRACKETVAL(val,0.5,1e9);
       qtau=val; }
     else if (!strcmp(cmd,"wall")) {
-      bracketval(val,0.1,9);
+      BRACKETVAL(val,0.1,9);
       walldens=PI*val; }
     else if (!strcmp(cmd,"cutoff") || !strcmp(cmd,"cut")) {
-      bracketval(val,2.4,1000);
+      BRACKETVAL(val,2.4,1000);
       cutoff=val;
       setss(); }
     else if (!strcmp(cmd,"l")) {
       double L0=L;
       L=val; val=L2rho(L);
-      bracketval(val,0.0001,2); // this is rho
+      BRACKETVAL(val,0.0001,2); // this is rho
       L=L0;
       sliders.rho->value(log(val)); }
     else if (!strcmp(cmd,"th")) {
@@ -380,9 +325,9 @@ static void read_parm(char *cmd) /******************************** read_parm */
       bc=(bctype)ival;
       if (bc<BOX || bc>PERIODIC) bc=BOX; }
     else
-      buttons.parms->value("? variable"); }
+      buttons.parms->value("ERROR variable"); }
   else
-    buttons.parms->value("? number");
+    buttons.parms->value("ERROR number");
 }
 
 /* read in parameters from input area [cmd:] */

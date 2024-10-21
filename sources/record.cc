@@ -1,8 +1,4 @@
-// fltk-config --use-images --compile simolant.cc
-// g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
-
-int record;
-const char *key;
+// Data recording - activated by radio buttom [▯ record]
 
 struct res_s {
   struct res_s *next;
@@ -11,13 +7,24 @@ struct res_s {
   double sum,sumq;
 } *head;
 
-#define looplist(PTR,HEAD) for ((PTR)=(HEAD); (PTR); (PTR)=(PTR)->next)
-
-// to store all the CP
+// to store the convergence profiles CP)
 struct CP_s {
   struct CP_s *next;
   char line[1]; // variable length
 } *CPhead=NULL;
+
+// change spaces to underscores, this helps simple plots to use CSV
+static char *space2_(const char *s) /******************************* space2_ */
+{
+  static char conv[16];
+  char *c;
+
+  if (strlen(s)>15) return (char *)s;
+  strcpy(conv,s);
+  for (c=conv; *c; c++) if (*c==' ') *c='_';
+  
+  return conv;
+}
 
 /* add measurement (for averages; if ((incl->value()&1)), then also append to CP */
 void addM(const char *name,double x) /********************************* addM */
@@ -72,6 +79,7 @@ void addM(const char *name,double x) /********************************* addM */
   a->sumq=x*x;
 }
 
+// change decimal points to commas if requested
 void comma(char *s) /************************************************* comma */
 {
   if (buttons.comma->value())
@@ -80,24 +88,88 @@ void comma(char *s) /************************************************* comma */
       s++; }
 }
 
+// change tabulators to the csv separator (, if not comma, ; if comma)
+void csvline(char *s) /********************************************* csvline */
+{
+  for (char *c=s; *c; c++) if (*c=='\t') *c=files.sep;
+}
+
+// print to csv file, overloaded, separator first
+void prtcsv(int i) /************************************************* prtcsv */
+{
+  fprintf(files.csv,"%c%d",files.sep,i);
+}
+
+void prtcsv(double d) /********************************************** prtcsv */
+{
+  char x[16];
+  
+  sprintf(x,"%g",d);
+  comma(x);
+  fprintf(files.csv,"%c%s",files.sep,x);
+}
+
+void prtcsv(const char *s) /***************************************** prtcsv */
+{
+  fprintf(files.csv,"%c%s",files.sep,s); // on purpose without ""
+}
+
+void info2csv(const char *key) /*********************************** info2csv */
+{
+  char *c=strstr(files.info,key);
+
+  if (c) {
+    c=strchr(c,'=');
+    if (!c) goto bad;
+    c+=2;
+    fputc(files.sep,files.csv);
+    while ((unsigned)*c>' ') { fputc(*c,files.csv); c++; }
+    c++;
+    while ((unsigned)*c>' ') c++;
+    c++;
+    fputc(files.sep,files.csv);
+    while ((unsigned)*c>' ') { fputc(*c,files.csv); c++; }
+    return; }
+ bad:
+  prtcsv("n.a.");
+  prtcsv("n.a.");
+}
+
+const char *wallsg(int key) /**************************************** wallsg */
+{
+  return key?"attractive":"repulsive";
+}
+
+// print one item to csv
+
+// show the measurements and record them
+// returns the record status (1=continue, 0=erased)
 int showclearM() /*********************************************** showclearM */
-/* pops the results, asks, returns the record status (1=continue, 0=erased) */
 {
   struct res_s *a,*next;
-  char info[2048],*end;
-  char butt0[64];
-  static int overwrite=1,i,firstout=1;
+  char *end;
+  char butt0[80];
+  static int overwrite=1,i;
   int choice;
   double shift=0.5;
   FILE *out;
   struct CP_s *CP;
 
+  if (buttons.csv->value()) {
+
+  }
+  else
+    files.csv=NULL;
+
+  files.sep=",;"[(int)buttons.comma->value()]; // global
+
   if (!head) return 0; // recording already off
 
-  // recording just turned off
+  // recording just has turned off
 
   // generate info string to pop up and write to a file
-  end=info;
+  // also, csv generated from this (cumbersome...)
+  end=files.info;
 
   looplist (a,head) {
     double av=a->sum/a->n;
@@ -109,130 +181,239 @@ int showclearM() /*********************************************** showclearM */
     if (a==head) end+=sprintf(end,"\
 %2d blocks (block length=%d, stride=%d)\n\
 ----------------------------------------\n\
-quantity = average ± standard error (relative std.err.)\n\
-",a->n,block,nit);
+quantity = average ± standard error (relative error)\n\
+",a->n,block,speed.stride);
 
     end+=sprintf(end,"%s = %g ± %.3g (%.3g %%)\n",
                  a->name,
                  av,stder,fabs(stder/av*100)); }
-  comma(info);
+  comma(files.info);
 
   if (head->n<2)
     choice=!fl_choice("Not enough blocks have been recorded.","Stop recording","Continue",NULL);
   else {
     if (overwrite) {
-      if (strlen(protocol)<32) sprintf(butt0,"save (overwrite \"%s\") and clear",protocol);
+      if (strlen(files.protocol)<26) sprintf(butt0,"save (overwrite \"%s.{txt,csv}\") and clear",files.protocol);
       else strcpy(butt0,"save (overwrite protocol) and clear"); }
     else {
-      if (strlen(protocol)<32) sprintf(butt0,"append to \"%s\" and clear",protocol);
+      if (strlen(files.protocol)<26) sprintf(butt0,"append to \"%s.{txt,csv}\" and clear",files.protocol);
       else strcpy(butt0,"append to protocol and clear"); }
 
-    // It is not possible to use info as the 1st parameter
-    // because the paranoic compiler shouts that
-    // "format not a string literal and no format arguments"
-    choice=fl_choice("%s","continue",butt0,"clear (data lost)",info);
+    choice=fl_choice("%s","continue",butt0,"clear (data lost)",files.info);
+    // this is warning:
+    //   choice=fl_choice(info,"continue",butt0,"clear (data lost)");
   }
 
   switch (choice) {
-    case 0:
+    case 0: // [continue]
       return 1;
 
-    case 1:
-      if (overwrite) {
-        char *bak=strdup(protocol),*ext=(char*)getext(bak);
-        if (!strcmp(ext,".txt")) strcpy(ext,".bak");
-        rename(protocol,bak);
-        free(bak);
-        out=fl_fopen(protocol,"wt"); }
+    case 1: // [save]
+      strcpy(files.ext,".txt");
+      out=fl_fopen(files.protocol,overwrite?"wt":"at");
+      if (buttons.csv->value()) {
+        strcpy(files.ext,".csv");
+        files.csv=fl_fopen(files.protocol,overwrite?"wt":"at");
+        if (!files.csv) fl_alert("cannot write the summary files.csv file"); }
       else
-        out=fl_fopen(protocol,"at");
-      if (out) {
-        static int BLOCK=0;
-        static char lout[1024];
+        files.csv=NULL;
 
-        BLOCK++;
+      if (!out)
+        fl_alert("cannot write the protocol");
+      else {
+        char lout[512]; // 2* safety size
+
+        files.nmeas++;
         overwrite=0;
 
-        if (firstout) {
+        if (files.nmeas==1)
           fprintf(out,"SIMOLANT VERSION %s\n",VERSION);
-          firstout=0; }
 
         sprintf(lout,"\
 \n\
 =========== MEASUREMENT =========== # %d ===========\n\
-\n\
-N=%d bc=%s method=%s T=%g g=%g P=%g\n",
-                BLOCK,
-                N,bc==BOX?"Box":bc==SLIT?"Slit":"Periodic",
+Parameters:\n\
+  N=%d number of particles\n\
+  bc=%s boundary conditions\n\
+  method=\"%s\" MC/MD, thermostat/barostat\n\
+  T=%g temperature\n\
+  P=%g pressure\n\
+  g=%g gravity\n",
+                files.nmeas,
+                N,
+                bc==BOX?"Box":bc==SLIT?"Slit":"Periodic",
                 thinfo[thermostat],T,gravity,P);
+        comma(lout);
+        fputs(lout,out);
+
+        if (files.csv) {
+          if (files.nmeas==1)
+            fprintf(files.csv,"#,N,bc,method,T,g,P,walls,rho_wall,L,rho,cutoff,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,enthalpy,err,Econserved,err\n");
+          fprintf(files.csv,"%d",files.nmeas);
+          prtcsv(N);
+          prtcsv(bc);
+          fprintf(files.csv,"%c\"%s\"",files.sep,space2_(thinfo[thermostat])); // do not use prtcsv(char*)
+          prtcsv(T);
+          prtcsv(gravity);
+          prtcsv(P);
+          prtcsv(walls);
+          prtcsv(walldens/PI);
+          prtcsv(L);
+          prtcsv(L2rho(L));
+          prtcsv(cutoff);
+          prtcsv(tau);
+          prtcsv(qtau);
+          if (isMC(thermostat)) prtcsv(dt);
+          else prtcsv(d);
+          prtcsv(dV);
+          prtcsv(speed.stride);
+          prtcsv(block); }
+
+        switch (bc) {
+          case BOX:
+            sprintf(lout,"\
+  walls:\n\
+    left=%s right=%s bottom=%s top=%s\n\
+    rho_wall=%g (number density of smoothed wall atoms)\n",
+                    wallsg(walls&1),wallsg(walls&2),wallsg(walls&4),wallsg(walls&8),
+                    walldens/PI);
+            break;
+          case SLIT:
+            sprintf(lout,"\
+  walls:\n\
+    bottom=%s top=%s\n\
+    rho_wall=%g (number density of smoothed wall atoms)\n",
+                    wallsg(walls&4),wallsg(walls&8),
+                    walldens/PI);            break;
+          default:
+            sprintf(lout,"  walls: not present (rho_wall=%g)\n",
+                    walldens/PI); }
+        comma(lout);
+        fputs(lout,out);
+
+        sprintf(lout,"\
+  L=%g box side\n\
+  rho=%g  number density N/L²\n\
+  cutoff=%g potential cutoff (is also smoothed)\n",L,L2rho(L),cutoff);
         comma(lout); fputs(lout,out);
 
-        sprintf(lout,"walls: left=%s right=%s bottom=%s top=%s rho_wall=%g\n",
-                walls&1?"attr":"rep",
-                walls&2?"attr":"rep",
-                walls&4?"attr":"rep",
-                walls&8?"attr":"rep",walldens/PI);
-        comma(lout); fputs(lout,out);
+        sprintf(lout,"\
+  tau=%g thermostat characteristic time (MD)\n\
+  qtau=%g =Ptau/tau, where Ptau = barostat characteristic time (NPT MD)\n\
+  dt=%g leap-frog integration step (MD)\n",tau,qtau,dt);
+        comma(lout);
+        fputs(lout,out);
 
-        sprintf(lout,"L=%g  rho=%g  cutoff=%g\n",L,L2rho(L),cutoff);
-        comma(lout); fputs(lout,out);
+        sprintf(lout,"\
+  d=%g(%s) trial displacement in L (MC)\n\
+  dV=%g trial volume change (NPT MC)\n",d,setd->value()?"auto":"fixed",dV);
+        comma(lout);
+        fputs(lout,out);
 
-        sprintf(lout,"tau=%g  qtau=%g  dt=%g\n",tau,qtau,dt);
-        comma(lout); fputs(lout,out);
-
-        sprintf(lout,"d=%g(%s)  dV=%g  stride*block=%d*%d\n",d,setd->value()?"auto":"fixed",dV,nit,block);
-        comma(lout); fputs(lout,out);
-
+        sprintf(lout,"\
+  stride=%d quantities are measured every %d%s MD step or MC sweep\n\
+  block=%d quantities are averaged in blocks by %d measured points\n",
+                speed.stride,speed.stride,
+                speed.stride==1?"st":speed.stride==2?"nd":speed.stride==3?"rd":"th",
+                block,block);
+        //        comma(lout);
+        fputs(lout,out);
 
         fprintf(out,"\n----------------------------------------\n");
-        fputs(info,out);
+        fputs(files.info,out);
         //        fprintf(stderr,"strlen(info)=%d\n",(int)(strlen(info)));
         // <600 bytes detected, char info[2048] = safe size
 
-        if (CPhead && (incl->value()&1)) {
+        if (files.csv) {
+          // writing csv from re-parsed info string
+          // the order in info may differ
+          // should match the CSV header
+          info2csv("Etot");
+          info2csv("Tkin");
+          info2csv("Epot");
+          info2csv("V");
+          info2csv("Z");
+          info2csv("Pvir");
+          info2csv("Pxx");
+          info2csv("Pyy");
+          info2csv("γ");
+          info2csv("P(right_wall)");
+          info2csv("P(left_wall)");
+          info2csv("P(top_wall)");
+          info2csv("P(bottom_wall)");
+          info2csv("H");
+          info2csv("Econserved");
+          fprintf(files.csv,"\n"); }
 
-          fprintf(out,"\n\
+        if (CPhead && (incl->value()&1)) { // convergence profiles
+
+          FILE *cpcsv=NULL;
+
+          if (buttons.csv->value()) {
+            sprintf(files.ext,"-CP%d.csv",files.nmeas);
+            cpcsv=fl_fopen(files.protocol,"wt");
+            if (!cpcsv) fl_alert("cannot write to CSV file (will use TXT)"); }
+
+          if (cpcsv) {
+            fprintf(cpcsv,"#t");
+            looplist (a,head) {
+              fprintf(cpcsv,"%c",files.sep);
+              fprintf(cpcsv,"%s",a->name); }
+            fprintf(cpcsv,"\n"); }
+          else {
+            fprintf(out,"\n\
 ----------------------------------------------------\n\
 Convergence profile (time development of quantities)\n\
 ----------------------------------------------------\n");
 
-          fprintf(out,"A=time");
-          i='A';
-          looplist (a,head) {
-            i++;
-            fprintf(out,"\t%c=%s",i,a->name); }
-          fprintf(out,"\tKEY\n");
+            fprintf(out,"time");
+            i='A';
+            looplist (a,head) {
+              fprintf(out,"\t%c=%s",i,a->name);
+              i++; }
+            fprintf(out,"\tKEY\n"); }
 
           for (CP=CPhead; CP; ) {
             struct CP_s *next=CP->next;
+
             comma(CP->line);
-            fprintf(out,"%sCP%d\n",CP->line,BLOCK);
+
+            if (cpcsv) {
+              csvline(CP->line);
+              fprintf(cpcsv,"%s\n",CP->line); }
+            else
+              fprintf(out,"%sCP%d\n",CP->line,files.nmeas);
+
             free(CP);
             CP=next; }
 
-          CPhead=NULL; }
+          CPhead=NULL;
+          if (cpcsv) fclose(cpcsv);
+          else fputs("\n",out); }
 
-        fputs("\n",out);
-
-        if (measure>=RDF && (incl->value()&2)) {
+        if (measure>=RDF && (incl->value()&2)) { // density profiles
           int i;
           double q,cumul=0,Q;
+          const char *dpkey=NULL;
 
-          fputs("------------------------------\n",out);
+          FILE *dpcsv=NULL;
+
+          if (!files.csv) fputs("------------------------------\n",out);
+
           switch (measure) {
             case RDF:
-              key="RDF";
+              dpkey="RDF";
               q=1./50;
               if (isNPT(thermostat)) Q=L2rho(sum.V/iblock);
               else Q=L2rho(L);
               Q*=PI/5000; /* 50^2*2 */
-              fprintf(out,"\
+              if (!files.csv) fprintf(out,"\
 Radial distribution function\n\
 ------------------------------\n\
 r\tg(r)\tN(r)\tKEY\n");
               break;
             case YPROFILE:
-              key="VDP";
+              dpkey="VDP";
               if (isNPT(thermostat)) {
                 Q=(sum.V/iblock)/(HISTMAX*2);
                 q=sqrt(sum.V/iblock)/HISTMAX; }
@@ -240,16 +421,16 @@ r\tg(r)\tN(r)\tKEY\n");
                 Q=L*L/(HISTMAX*2);
                 q=L/HISTMAX; }
               shift=(1-HISTMAX)*0.5; // y-profile is centered
-              fprintf(out,"\
+              if (!files.csv) fprintf(out,"\
 Vertical density profile\n\
 ------------------------------\n\
 y\tρ(y)\tN(y)\tKEY\n");
               break;
             case CPROFILE:
-              key="CRDP";
+              dpkey="CRDP";
               goto qqq;
             default:
-              key="DRDP";
+              dpkey="DRDP";
             qqq:
               if (isNPT(thermostat)) {
                 q=sqrt(sum.V/iblock)/(HISTMAX*2);
@@ -257,23 +438,40 @@ y\tρ(y)\tN(y)\tKEY\n");
               else {
                 q=L/(HISTMAX*2);
                 Q=PI*Sqr(L/HISTMAX)/8; }
-              fprintf(out,"\
+              if (!files.csv) fprintf(out,"\
 Radial density profile\n\
 ------------------------------\n\
 r\tρ(r)\tN(r)\tKEY\n"); }
 
+          if (files.csv) {
+            sprintf(files.ext,"-%s%d.csv",dpkey,files.nmeas);
+            dpcsv=fl_fopen(files.protocol,"wt");
+            if (!dpcsv) {
+              fl_alert("cannot write to CSV file (will use TXT)");
+              return 0; }
+            fprintf(dpcsv,"#%c,%s,cumul\n",dpkey[0]=='V'?'y':'r',dpkey); }
+
           loop (i,0,HISTMAX) {
             if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
-            sprintf(lout,"%g\t%g\t%g\t%s%d\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q,key,BLOCK);
+            if (dpcsv) sprintf(lout,"%g\t%g\t%g\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q);
+            else sprintf(lout,"%g\t%g\t%g\t%s%d\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q,dpkey,files.nmeas);
             if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
             comma(lout);
-            fputs(lout,out); } }
 
+            if (dpcsv) {
+              csvline(lout);
+              fprintf(dpcsv,"%s",lout); }
+            else
+              fputs(lout,out); }
+          fclose(dpcsv); } // density profiles
+
+        if (files.csv) fclose(files.csv);
         fclose(out); }
 
-    case 2:
+    case 2: // [clear]
+      // erasing recorded data
       for (a=head; a; a=next) {
         next=a->next;
         // delete a;
@@ -283,8 +481,9 @@ r\tρ(r)\tN(r)\tKEY\n"); }
       loop (i,0,HISTMAX) rhosum[i]=0;
 
       head=NULL;
-      return 0; }
+      return 0; } /* switch (choice) */
 
   fprintf(stderr,"fl_choice: bad return value\n");
+
   return 0;
 }

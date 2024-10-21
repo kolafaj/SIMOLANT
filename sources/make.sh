@@ -1,6 +1,19 @@
-#!/bin/sh
+#!/bin/bash
+if [ $# -lt 1 ]; then
+  cat <<EOF
+Compile simolant. Call by:
+  make.sh {s|d}
+where
+  s = static linking
+  d = dynamic linking
+EOF
+  exit 1
+fi
 
-g++ -I/usr/include/freetype2 -O2 -D_THREAD_SAFE -D_REENTRANT -Wall -o simolant simolant.cc -lfltk_images -lfltk 
+export LC_ALL=C
 
-# make for Linux (FLTK), dynamic linking
-# fltk-config --use-images --compile simolant.cc
+case ${1:0:1} in
+  d | D ) g++ -I/usr/include/freetype2 -O2 -D_THREAD_SAFE -D_REENTRANT -Wall -o simolant simolant.cc -lfltk_images -lfltk ;;
+  s | S ) fltk-config --use-images --compile simolant.cc ;;
+  * ) echo "wrong argument"
+esac

@@ -13,7 +13,7 @@ You need gcc/g++ and FLTK (V1.3) installed.
 
 ## Microsoft Windows
 
-You need MinGW (with gcc/g++) + FLTK (V1.3) installed.
+You need MinGW (with gcc/g++) and FLTK (V1.3) installed.
 
 * For a dynamically linked version, see linux above.
 * For statically-linked versions, both standard (windows) and console, use:<br />

@@ -1,7 +1,8 @@
 // fltk-config --use-images --compile simolant.cc
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
+// g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "02/2024"
+#define VERSION "09/2024"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>
@@ -21,63 +22,73 @@
 #include <FL/Fl_Help_Dialog.H>
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Fill_Slider.H>
-
-#if FL_MAJOR_VERSION==1 && FL_MINOR_VERSION<3
-// old version:
-//   no <FL/Fl_Native_File_Chooser.H>
-//   UTF8 characters not treated in V<1.3 (ugly anyway)
-#  define fl_fopen fopen
-#  include <FL/Fl_File_Chooser.H>
-#else
-#  define NATIVE
-#  include <FL/Fl_Native_File_Chooser.H>
-#endif
+#include <FL/Fl_Native_File_Chooser.H>
 
 #include "include.h"
 
 #define PI M_PI // needed in rndetc.c
 #include "rndgeni.c"
 
-#define PANELW 329 // right panel width (needs tinkering if changed)
-#define MENUH 25  // top menu height (reasonable range 20..30)
-#define INFOPANELH 92 // height of the top panel with N=, ensemble, parameters
-                      // given by font size - do not change
+// #define PANELW 329 // OLD right panel width (needs tinkering if changed)
+#define PANELW 392       // right panel width (needs tinkering if changed)
+#define MENUH 24         // top menu height (reasonable range 20..30)
+#define INFOPANELH 92    // height of the top panel with N=, ensemble, parameters
+                         // given by font size - do not change
 #define RESULTPANELH 250 // height of the results panel and graphs
                          // given by font size and graph - do not change
 #define BUTTONPANELH 370 // height of the bottom panel with buttons,sliders
                          // partly flexible, but cannot shrink too much
-#define BORDER 7 // box border (can change)
+#define BORDER 7         // box border (can change)
 // square box size (initial, wall-wall area, can change):
 #define BOXSIZE (INFOPANELH+RESULTPANELH+BUTTONPANELH-2*BORDER)
+// default geometry
+#define INITGEOMETRY_Y (INFOPANELH+RESULTPANELH+BUTTONPANELH+MENUH)
+#define INITGEOMETRY_X (INFOPANELH+RESULTPANELH+BUTTONPANELH+PANELW)
 
-static double TIMERDELAY=0.05; // timer default value in s, option -T
-static double timerdelay=TIMERDELAY; // to be changed by sliders.speed
-static double initspeed=1.1; // nit=3
-static int extradelay=10000; // in us - delay added to avoid Xorg jam, see -U
-//static double initspeed=0.7; // nit=2
+// Okabe and Ito colo-blind-safe palette
+// https://www.nceas.ucsb.edu/sites/default/files/2022-06/Colorblind%20Safe%20Color%20Schemes.pdf
+
+#define OI_BLACK  0x00000000
+#define OI_GREEN  0x009E7300
+#define OI_BLUE   0x0072B200
+#define OI_CYAN   0x56B4E900
+#define OI_YELLOW 0xF0E44200
+#define OI_ORANGE 0xE69F0000
+#define OI_RED    0xD55E0000
+#define OI_LILAC  0xCC79A700
+#define LIGHTYELLOW 0xFFF08000 // for graphs vs. OI_GREEN
+
 #define RNBR 1.55 // range for neighbors
+// not needed for linux - check speed.extradelay with Windows!
 
-//KM menu-redraw must be explicitly requested, so Simulate must know it
+// some global variables collected here
+struct files_s {
+  int record=0;         // state of recording
+  int nmeas=0;          // counter of blocked measurements
+  char sep=',';         // CSV field separator (global)
+  FILE *csv=NULL;       // output CSV file with blocked neasurements
+  char protocol[256]="simolant"; // .txt or .csv will be added, cf. cb_protocol()
+  char *ext=protocol+8; // . of the extension
+  char info[2048]="";   // blocked measurement to record
+} files;
+
+// KM menu-redraw must be explicitly requested, so Simulate must know it
 
 struct Sliders {
   Fl_Fill_Slider *T,*tau,*d,*g,*rho,*P,*N, *speed,*block;
 } sliders;
 
 struct Buttons {
-  Fl_Light_Button *wallx,*wally,*wallxL,*wallyL, *meas,*comma;
+  Fl_Light_Button *wallx,*wally,*wallxL,*wallyL, *record,*csv,*comma;
   Fl_Input *parms;
 } buttons;
 
 Fl_Help_Dialog *help;
 Fl_Choice *molsize,*drawmode,*colormode,*incl;
-Fl_Button *resetchoices,*setd;
+Fl_Button *resetview,*invertwalls,*setd;
 Fl_Light_Button *run; // run/hold
-char *protocol=(char*)"simolant.txt";
-#ifdef INCL
-int writeCP=0; // full convergence profile will be written, changed to incl->value()&1
-int writeDF=0; // density profiles, RDF will be written, changed to incl->value()&2
-#endif
 
+#include "speed.cc"
 #include "calculate.cc"
 #include "callbacks.cc"
 #include "record.cc"
@@ -104,8 +115,8 @@ Fl_Menu_Item colormodeitems[]={
 
 Fl_Menu_Item inclitems[]={
   { "&Nothing" },
-  { "&Conv.prof." },
-  { "&Dens.prof." },
+  { "&Convergence prof." },
+  { "&Density profile" },
   { "&Both" },
   { 0 } };
 
@@ -115,13 +126,9 @@ Fl_Menu_Bar *menu;
 
 Fl_Menu_Item menuitems[] = {
   { "&File", FL_ALT|'f', 0, 0, FL_SUBMENU },
-  { "&Open configuration...", 0, cb_open },
+  { "&Protocol name...", 0, cb_protocol, 0, FL_MENU_DIVIDER },
+  { "&Load configuration...", 0, cb_load },
   { "&Save configuration as...", 0, cb_save, 0, FL_MENU_DIVIDER },
-  { "&Protocol name...", 0, cb_record, 0, FL_MENU_DIVIDER },
-#ifdef INCL  
-  { "Include &Convergence profile...", 0, cb_cp },
-  { "Include &Density functions...", 0, cb_df, 0, FL_MENU_DIVIDER },
-#endif
   { "&Quit", 0, cb_exit },
   { 0 },
   { "&Prepare system  ", FL_ALT|'p', 0, 0, FL_SUBMENU },
@@ -172,18 +179,27 @@ Fl_Menu_Item menuitems[] = {
   { "&Droplet radial density profile", 0, cb_dprofile },
   { "&Cavity radial density profile", 0, cb_cprofile },
   { 0 },
+  { "&Tinker  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
+  { "FPS=&15", 0, cb_fps15 },
+  { "FPS=&30", 0, cb_fps30 },
+  { "FPS=&60", 0, cb_fps60 , 0, FL_MENU_DIVIDER },
+  { "Timeout &99% of simulation (use if shaky)", 0, cb_timeout99 },
+  { "Timeout &50% of simulation", 0, cb_timeout50 },
+  { "Timeout &25% of simulation (faster)", 0, cb_timeout25 },
+  { 0 },
   { "&Help", FL_ALT|'h', 0, 0, FL_SUBMENU  },
   { "&Manual", 0, cb_help, 0, FL_MENU_DIVIDER },
   { "&About", 0, cb_about },
   { 0 },
   { 0 } };
 
-int main(int narg,char **arg) {
+int main(int narg,char **arg) /**************************************** main */
+{
   Simulate *simulate;
   typedef char *charptr;
   char **newarg=new charptr[narg];
-  const char *fn="";
-  int iarg,newiarg=0;
+  const char *fn="",*ext;
+  int iarg,newiarg=0,fltkoptions=0;
   enum cfg_t init=GAS;
   char *optionP=NULL;
 
@@ -192,36 +208,40 @@ int main(int narg,char **arg) {
     if (arg[iarg][0]=='-' && isupper(arg[iarg][1]))
       switch (arg[iarg][1]) {
         case 'C': circlemethod=atoi(arg[iarg]+2); break;
-        case 'D': debug=atoi(arg[iarg]+2); if (!debug) debug=100; break;
+        case 'D': debug=atoi(arg[iarg]+2); if (!debug) debug=1; break;
+        case 'F': speed.FPS=atof(arg[iarg]+2); break;
         case 'I': fn=arg[iarg]+2; init=(enum cfg_t)atoi(arg[iarg]+2); break;
-        case 'N': N=atoi(arg[iarg]+2); break;
+        case 'N': N=atoi(arg[iarg]+2); break; // legacy
         case 'P': optionP=arg[iarg]+2; break;
-        case 'S': initspeed=atof(arg[iarg]+2); break;
-        case 'T': TIMERDELAY=atof(arg[iarg]+2); break;
-        case 'U': extradelay=atoi(arg[iarg]+2)*1000; break;
+        case 'S': speed.init=atof(arg[iarg]+2); break;
+        case 'T': speed.MINTIMEOUT=atof(arg[iarg]+2); break;
+        case 'U': speed.extradelay=(int)(atof(arg[iarg]+2)*1e6+0.5); break;
         default: fprintf(stderr,"\
 SIMOLANT " VERSION " options (NO SPACE BEFORE NUMBER):\n\
-  -C<CIRCLE>   circle drawing method:\n\
-               0=fl_pie  1=fl_circle  2=custom of fl_line [default=2]\n\
-  -D<MDSTEPS>  debug mode (timing and technical info printed every MDSTEPS)\n\
-               disabled in Windows (recompile with -mconsole)\n\
-  -I<INIT>     (number) start with system, see the Prepare system menu for\n\
-               numbers [default=0=Gas]\n\
-  -I<FILE>     (name.sim) open sim-file on start\n\
-  -N<N>        initial number of particles\n\
-  -P<LIST>     comma-separated parameter list, performed after -I, -N,\n\
-               the same as for input field \"cmd:\"\n\
-  -S<SPEED>    initial value of the simulation speed slider [default=0.7]\n\
-               affects the timer and (for SPEED>0) the skipped frames (stride)\n\
-  -T<TIME>     timer delay in s for speed=0 [default=0.05]\n\
-  -U<DELAY>    delay in ms added to avoid display jam [default=10]\n\
-  <FILE>       (NAME.sim) open sim-file on start (single argument only)\n\
-In case of multiple instances of the same option, the last one applies\n\
+  <FILE>     (NAME.sim) open sim-file on start (single argument only)\n\
+  -C<CIRCLE> circle drawing method:\n\
+             0=fl_pie  1=fl_circle  2=composed of fl_line [default=2]\n\
+  -D<CYCLES> debug mode (timing and technical info printed every CYCLES)\n\
+             disabled in Windows (recompile with -mconsole)\n\
+  -D         the same as -D1\n\
+  -F<FPS>    frames per second of movies (if possible) [default=%g]\n\
+  -h         get help on lowercase FLTK options\n\
+  -I<INIT>   start, see menu Prepare system for numbers [default=0=Gas]\n\
+  -N<N>      number of particles (deprecated, use -PN=<N>)\n\
+  -P<LIST>   comma-separated parameter list, the same as for input field \"cmd:\"\n\
+             performed after -I, -N\n\
+  -S<SPEED>  initial value of the simulation speed slider [default=%g]\n\
+             SPEED>=1: stride, SPEED<1: stride=1+add delays\n\
+  -T<FACTOR> timer at least FACTOR of the sim. cycle duration [default=%g]\n\
+  -U<DELAY>  delays in s added, use if the widgets are lazy [default=%g]\n\
+In case of multiple instances of the same option, the last one applies.\n\
 FLTK options are in lowercase and with a space before a number, get them by:\n\
   simolant -x\n\
+Do not change too much the default geometry -g %dx%d\n\
 EXAMPLE:\n\
-  simolant -g 1235x960 -I7 -N600 -Pg=-0.02,tau=0.5\n\
-");
+  simolant -g 1080x775 -I7 -PN=600,g=-0.02,tau=0.5\n\
+",speed.FPS,speed.init,speed.MINTIMEOUT,speed.extradelay,INITGEOMETRY_X,INITGEOMETRY_Y);
+          if (!fltkoptions) exit (0);
       }
     else {
       newarg[newiarg++]=arg[iarg]; } }
@@ -238,25 +258,43 @@ EXAMPLE:\n\
 
   if (debug) fprintf(stderr,"geometry:\n  -g %dx%d\n",BOXSIZE+2*BORDER+PANELW,BOXSIZE+2*BORDER+MENUH);
 
+  // the upper menu
   menu=new Fl_Menu_Bar(0,0,BOXSIZE+2*BORDER+PANELW,MENUH);
   menu->menu(menuitems);
+
+  // right panel with info, graphs, and many widgets
   panel = new Panel(BOXSIZE+2*BORDER, MENUH, PANELW, BOXSIZE+2*BORDER);
+
+  /*
+    Simulate window is the simulation box to which the configuration is drawn.
+    The draw() method (actually accessed as redraw() which "schedules
+    redrawing") contains also drawing all panels and graphs and MC/MD
+    calculations.  At the same time, it initiates the timer_callback() loop.
+    with redrawing everything and refreshing the timer.  
+    The simulation box is resizable, the right panel is resized accordingly,
+    cf. the note in panel.cc: Panel()
+  */
   simulate = new Simulate(0, MENUH, BOXSIZE+2*BORDER, BOXSIZE+2*BORDER);
   win.resizable(simulate);
 
   help = new Fl_Help_Dialog();
   help->textsize(16);
-  help->resize(0,0,640,480);
+  help->resize(0,0,800,600);
 
   if (init<GAS || init>=SENTINEL) init=GAS;
 
   Fl::visual(FL_DOUBLE|FL_INDEX);
 
-  win.show(newiarg,newarg);
-
-  if (!strcmp(getext(fn),".sim")) loadcfg(fn); // name.sim => load it
-  else initcfg(init); // no .ext=.sim => is a number
+  if (newiarg>1) fprintf(stderr,"FLTK ");
+  win.show(newiarg,newarg); // only FLTK options passed
+  loop (iarg,1,newiarg) if (!memcmp(newarg[iarg],"-h",2)) {
+    fprintf(stderr,"Use option -H to get simolant options\n");
+    exit(0); }
   
+  ext=getext(fn);
+  if (ext && !strcmp(ext,".sim")) loadsim(fn); // name.sim => load it
+  else initcfg(init); // no .ext=.sim => is a number
+
   if (optionP) {
     char *c,*e;
 
@@ -277,6 +315,6 @@ EXAMPLE:\n\
       double r=i/200.;
       printf("%5.3f %.9g %.9g %.9g\n",
              r,u(r*r),f(r*r)*r,(u(Sqr(r-5e-6))-u(Sqr(r+5e-6)))/1e-5); } }
-  
+
   return Fl::run();
 }
