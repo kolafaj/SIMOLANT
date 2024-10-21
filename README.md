@@ -2,6 +2,8 @@
 
 Molecular simulation in 2D
 
+![SIMOLANT](sources/screenshot.png)
+
 ## Aims
 
 * _In teaching physics and chemistry at elementary and high schools:_ A number of phenomena are shown using a two-dimensional molecular model of matter:
@@ -58,4 +60,3 @@ _In Windows, do not run directly from "folder simolant-win32"!_
 * CSV output added
 * Okabe and Ito colorblind-safe palette
 
-![SIMOLANT](sources/screenshot.png)
