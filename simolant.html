@@ -1,9 +1,9 @@
 <head>
-  <title>SIMOLANT 09/2024</title>
+  <title>SIMOLANT 01/2025</title>
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 <body>
-  <h1><font color="NAVY" face="SANS">SIMOLANT 09/2024</font></h1>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 01/2025</font></h1>
 
 <!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
 
@@ -17,10 +17,12 @@
         <li><a href="#High">Elementary and high schools</a></li>
         <li><a href="#Universities">Universities</a></li>
       </ul>
-    <li><a href="#Model">Molecular model</a></li>
+    <li><a href="#Model">Molecular models</a></li>
       <ul>
-        <li><a href="#Potential">Interaction potential</a></li>
-        <li><a href="#Limits">How realistic is this all?</a></li>
+        <li><a href="#Potential">Lennard-Jones-like interaction potential</a></li>
+        <li><a href="#WALLS">Walls and gravity</a></li>
+        <li><a href="#Limits">How realistic is this?</a></li>
+        <li><a href="#Potentials">More interaction potentials</a></li>
       </ul>
     <li><a href="#Menus">Menus</a>
       <ul>
@@ -75,8 +77,8 @@
     simolant.exe or simolant from this folder (this is necessary for the
     online help).</p>
   <p>On other platforms, download simolant-sources.zip and follow the
-    instructions in readme.txt. You need FLTK V1.3 or higher (not V2 fork) and
-    gcc/g++.</p>
+    instructions in README.md. You need FLTK V1.3 or higher (not the V2 fork)
+    and gcc/g++.</p>
 
   <a name="Aims"></a>
   <h2><font color="NAVY" face="SANS">Aims of SIMOLANT</font></h2>
@@ -109,6 +111,7 @@
     <li>Flying ice cube problem of the Berendsen thermostat.</li>
     <li>Radial distribution function and coordination number.</li>
     <li>Walls and periodic boundary conditions.</li>
+    <li>Soft penetrable disks, repulsive WCA-like potential, double well potential.</li>
     <li>Simulation workouts:
       <ul>
         <li>Isotherms and the critical point</li>
@@ -116,62 +119,85 @@
         <li>Line tension ("surface tension" in 2D)</li>
         <li>Dependence of the line tension on temperature and the total line tension (surface enthalpy)</li>
         <li>Kelvin equation</li>
+        <li>More under preparation...</li>
       </ul>
     </li>
   </ul>
 
   <a name="Model"></a>
-  <h2><font color="NAVY" face="SANS">Molecular model</font></h2>
+  <h2><font color="NAVY" face="SANS">Molecular models</font></h2>
+
+  <p>A <i>molecular model</i> aka <i>interaction potential</i> aka <i>force
+    field</i> is the energy of a pair of atoms <i>r</i> apart expressed as a
+    function, <i>u</i>(<i>r</i>).  The total energy is the sum of these pair
+    terms over all pairs of atoms.  We do not use any real units – the units
+    are defined by the respective formulas and the Boltzmann
+    constant <i>k</i>=1).  The potential type and its parameters are printed
+    at the top of the right panel next to the number of particles; e.g.,
+    "N=300 LJ c=4"</p>
 
   <a name="Potential"></a>
-  <h3><font color="navy" face="sans"><i>Interaction potential</i></font></h3>
+  <h3><font color="navy" face="sans"><i>Lennard-Jones-like interaction potential</i></font></h3>
 
-  <p>The interaction potential is a function of
-    interparticle distance <i>r</i>:</p>
+  <p>The default interaction potential is a 2D analogue of the Lennard-Jones
+    potential:</p>
   <p>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>^8 − 4/<i>r</i>^4
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴
   </p>
-  <p>Term 4/<i>r</i>^8 is positive and therefore repulsive.  The
-    term −4/<i>r</i>^4 is negative and therefore attractive; it has a
-    longer range than the repulsive term.  The minimum of the potential
-    is −1 at <i>r=</i>2^(1/4)=1.189 (line marked as rmin in the graph of
-    RDF).</p>
+  <p>Term 4/<i>r</i>⁸ is positive and therefore repulsive.  The term
+    −4/<i>r</i>⁴ is negative and therefore attractive; it has a longer range
+    than the repulsive term.  The minimum of the potential is −1
+    at <i>r=</i>2^(1/4)=1.189 (line marked as rmin in the graph of RDF).</p>
 
-  <p>This is a two-dimensional analogue of the well-known Lennard-Jones
-    potential.  We do not use any real units – the units are defined
-    by the above formula (and the Boltzmann constant <i>k</i>=1).</p>
-
-  <p>The potential is truncated and smoothed.  The truncated potential equals
-    the original one for <i>r&lt;C</i>, otherwise</p>
-
+  <p>The potential is truncated at <i>c</i> (can be set in window cmd:)
+    and smoothed:</p>
   <p>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = <i>A</i>(<i>r</i>² − cutoff²)² &nbsp;  for <i>r</i> ∈ (<i>C</i>,cutoff),<br>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp;  for <i>r</i> &gt; <i>C</i>,
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴  &nbsp;  for <i>r</i> &gt; <i>c</i>₁,<br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = <i>A</i>(<i>r</i>² − <i>c</i>²)² &nbsp;  for <i>r</i> ∈ (<i>c</i>₁,<i>c</i>),<br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp;  &nbsp;  &nbsp;  &nbsp;  for <i>r</i> &gt; <i>c</i>,
   </p>
 
-  <p>where constants <i>A</i> and <i>C</i> (<i>C</i>&lt;cutoff) are determined
-  so that both the potential and forces are continuous (the derivate of
-  forces has jumps).  No cutoff corrections are added.  The default cutoff=4.
+  <p>where constants <i>A</i> and <i>c</i>₁ (<i>c</i>₁&lt;<i>c</i>) are
+    determined so that both the potential and forces are continuous (the
+    derivate of forces has jumps).  No cutoff corrections are added.  The
+    recommended default <i>c</i>=4, the minimum is <i>c</i>=2.232.  Any value
+    of <i>c</i>&ge;2.232 selects this potential.</p>
 
-  <p>For cutoff&lt;L/2, the nearest-image algorithm is used, otherwise a sum over all periodic images is calculated.</p>
+  <p>For <i>c</i>&lt;L/2 (L is the square box side), the nearest-image
+    algorithm is used, otherwise a sum over all periodic images is
+    calculated.</p>
 
-  <p>The critical point is approximately T=0.85, P=0.06, ρ=0.3 for cutoff=4.</p>
-
-  <p>There are two types of walls, attractive and repulsive.  The
-    attractive wall is built of the same particles, but imagine them ground
-    to tiny pieces and smoothly distributed on one side of the wall with
-    number density ρ=N/L²=0.75 (can be changed by option -Pwall=VALUE).
-    The particle–wall potential is thus</p>
-
-  <p>
-    &nbsp; &nbsp; <i>u</i><sub>wall</sub>(<i>d</i>) = πρ (5/24 <i>d</i>^6−1/<i>d</i>^2)
+  <p>The critical point for the default c=4 version is approximately T=0.85,
+    P=0.06, ρ=0.3 for <i>c</i>=4.  The Boyle temperature is 3.0138.
   </p>
 
-  <p>The repulsive wall is similar, only the attractive (negative) term is omitted.
-    The wall potentials are not truncated.  The walls are active in the respective boundary conditions, the sigh can be change in panel Walls.</p>
+  <a name="WALLS"></a>
+  <h3><font color="navy" face="sans"><i>Walls and gravity</i></font></h3>
+
+  <p>The walls can keep the particles in a box or a slit.  There are two types
+    of walls, attractive and repulsive.  The attractive wall is built of the
+    same particles as the 2D Lennard-Jones (without triuncation), but imagine
+    them ground to tiny pieces and smoothly distributed on one side of the
+    wall with number density ρ=N/L²=0.75 (can be changed by option
+    -Pwall=VALUE or from cmd:).  The particle–wall potential is thus</p>
+  <p>
+    &nbsp; &nbsp; <i>u</i><sub>wall</sub>(<i>d</i>) = πρ (5/24 <i>d</i>⁶ −1/<i>d</i>²)
+  </p>
+
+  <p>The repulsive wall is similar, only the attractive (negative) term is
+    omitted.  The walls are active in the respective boundary conditions, the
+    sign can be changed in panel Walls.</p>
+
+  <p>If horizontal walls are present, gravity can be turn on.  The potential
+  per particle is</p>
+  <p>
+    &nbsp; &nbsp; <i>u</i>>(<i>y</i>) = <i>−gy</i>
+  </p>
+  Negative <i>g</i> is the usual gravity.  <br>
+  <b>Bug or feature:</b> the virial of the force of gravity is not included in the pressure tensor calculation.
 
   <a name="Limits"></a>
-  <h3><font color="navy" face="sans"><i>How realistic is this all?</i></font></h3>
+  <h3><font color="navy" face="sans"><i>How realistic is this?</i></font></h3>
 
   <p> The two-dimensional model used by SIMOLANT is easier to show and
     simulate than a realistic three-dimensional model of, e.g., water.
@@ -202,21 +228,61 @@
     the compressibility factor Z deviates from 1, especially al low
     temperatures. </p>
 
+  <a name="Potentials"></a>
+  <h3><font color="navy" face="sans"><i>More interaction potentials</i></font></h3>
+
+  <p> In addition to the standard Lennard-Jones-like potential, several more
+  or less weird potentials are supported:</p>
+
+  <ul>
+    <li><a name="WCA"></a><b>WCA interaction potential</b><br>
+      The WCA potential is the Lennard-Jones (here 2D version) potential
+      truncated at the minimum and shifted:<br><br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴ +1 &nbsp; for <i>r</i> &lt; <i>c</i><br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp;  &nbsp;  &nbsp;  &nbsp;  &nbsp;  &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
+      where <i>c</i> = 2^(1/4).  Any <i>c</i> ∈ (1,2) is transformed
+      to <i>c</i> = 2^(1/4) = 1.1892071 and selects this potential.</li>
+
+    <li><a name="PD"></a><b>Penetrable disks and ideal gas</b><br>
+    The PD (penetrable spheres, here penetrable disks) is a simple model
+    of a polymer coil in a good solvent.  It is selected by <i>c</i>=2:<br><br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−4)² &nbsp; &nbsp; for <i>r</i> &lt; 2<br>
+    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; 2<br><br>
+    Normally, <i>a</i>=1/2.  From cmd:, any value can be set:<br>
+    <i>a</i>&gt;0 &nbsp; &nbsp; repulsive penetrable spheres (disks),<br>
+    <i>a</i>=0    &nbsp; &nbsp; ideal gas (not too much fun with it),<br>
+    <i>a</i>&lt;0 &nbsp; &nbsp; attractive penetrable spheres (disks) are
+    thermodynamically singular (the thermodynamic limit diverges).</li>
+
+    <li>
+      <a name="DW"></a><b>Double wall</b><br> The double wall potential with a
+      good choice of parameters might give a quasicrystal of 2D Penrose
+      tesselation:<br><br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = const (1−<i>r</i>²) (<i>a</i>²−<i>r</i>²) (<i>b</i>²−<i>r</i>²) (<i>c</i>²/<i>r</i>²−1)² &nbsp;  for <i>r</i> &lt; |<i>c</i>|<br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; |<i>c</i>|<br><br>
+      where, for the sake of temperature scale purpose, const is selected so
+      that ∫_1^∞ <i>u</i>(<i>r</i>)² d<i>r</i> = 512/1155 is the same as for the
+      2D Lennard-Jones.  This potential is selected by <i>c</i>&lt−1.
+      Parameters <i>a</i> and <i>b</i> are the nodes (zero values of the
+      potential), it should hold 1 &lt; <i>a</i> &lt; <i>b</i> &lt; |<i>c</i>|
+      Note that no check is performed of this condition.</li>
+  </ul>
+
   <a name="Menus"></a>
   <h2><font color="NAVY" face="SANS">Menus</font></h2>
+
   <a name="File"></a>
-  <h3><font color="navy" face="sans"><i>File</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>F</u>ile</i></font></h3>
   <ul>
     <li><b><u>O</u>pen...</b><br>
       Load a previously saved file with a configuration, see below for the
       format.</li>
 
     <li><b><u>S</u>ave as...</b><br>
-      Save simulation parameters
-      (N,bc,walls,T,L,walldens,dt,d,thermostat,P,dV)
-      and the configuration (atom x,y positions) and to a file.  Velocities
-      are not saved.  Extension <tt>.sim</tt> is added if not
-      present.  The <tt>sim</tt>-file is ASCII and human-readable.</li>
+      Save simulation parameters (N bc walls T L wall dt d method P dV tau qtau g a b c)
+      and the configuration (atom positions and velocities) and to a file.
+      Extension <tt>.sim</tt> is added if not present.
+      The <tt>sim</tt>-file is ASCII and human-readable.</li>
 
     <li><b><u>P</u>rotocol name...</b><br>
       Change the name of the files used for printing measured quantities (see
@@ -226,12 +292,56 @@
       are to be recorded, the extension <tt>.txt</tt> is changed
       to <tt>.csv</tt>.
 
+    <li><b><u>E</u>xport force field</b><br>
+      <p>Prints a file (tab-separated TXT or CSV, according to current setup) with the following columns:<br>
+        <tt>r</tt> = the interatomic distance<br>
+        <tt>ufull(r)</tt> = the full potential<br>
+        <tt>u(r)</tt> = the truncated potential (the same as ufull(r) except for 2DLJ)<br>
+        <tt>ffull(r)</tt> = the full force <br>
+        <tt>f(r)</tt> =  the truncated force<br>
+        <tt>-du(r)/dr_numeric</tt> = as above, obtained by a numerical derivative
+      </p>
+
     <li><b><u>Q</u>uit </b><br>
       Quit SIMOLANT. Also pressing Esc will quit.</li>
   </ul>
 
+
+
+  <a name="FF"></a>
+  <h3><font color="navy" face="sans"><i>F<u>o</u>rce field</i></font></h3>
+  <ul>
+    <li><b><u>L</u>ennard-Jones c=4 (recommended)</b><br>
+      Standard <a href="#Potential">2D Lennard-Jones potential</a> smoothly
+      cut off at <i>c</i>=4.  Parameter <i>c</i> cn be changed from cmd:, any
+      value <i>c</i>&ge;2.232 selects this type of the potential.</li>
+
+    <li><b><u>R</u>epulsive (WCALJ, c=1.1892)</b><br>
+      <a href="#WCA">Repulsive potential</a> cut at 2D Lennard-Jones minimum
+      and shifted.  Acronym WCALJ refers to its use in the
+      Weeks–Andersen–Chandler perturbation theory.</li>
+
+    <li><b><u>P</u>enetrable disks (a=0.5,c=2)</b><br> A model
+        of <a href="#PD">penetrable disks</a> (spheres in 3D), a 2D analogue of
+        a model of polymer coils in a good solvent.
+      Parameter <i>c</i>=2 selects penetrable disks, the potential
+        height <i>a</i>=1/2 can be changed from cmd:.</li>
+    <li><b><u>I</u>deal gas (a=0,c=2)</b><br>
+      As above with no interaction (ideal gas).
+    <li><b><u>A</u>ttractive disks (a=−0.5,c=2)</b><br> As above with
+      attraction.  This model does not have a thermodynamic limit (the Gibbs
+      state is singular).</li>
+
+    <li><b><u>D</u>ouble well (a=1.25,b=1.4,c=-2)</b><br>
+      <a href="#DW">A potential with a double
+      well</a>. Parameters <i>a</i>,<i>b</i>,<i>c</i> can be changed from
+      cmd:; |<i>c</i>| is the cutoff (−∞%lt;<i>c</i>−1 selects the
+      double-well potential), it must hold  1 &lt; <i>a</i> &lt; <i>b</i> &lt;
+      |<i>c</i>|.
+  </ul>
+
   <a name="Prepare"></a>
-  <h3><font color="navy" face="sans"><i>Prepare system</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>P</u>repare system</i></font></h3>
 
   The simulation start, methods, and parameters of simulation, and
   quantities to observe are prepared for you to observe phenomena.
@@ -320,10 +430,10 @@
   </ul>
 
   <a name="Method"></a>
-  <h3><font color="navy" face="sans"><i>Method</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>M</u>ethod</i></font></h3>
 
   <p>Here the simulation method (MC/MD), ensemble (NVE, NVT, NPT) and
-  thermostat/barostat flavors are selected.</p>
+    thermostat/barostat flavors are selected.</p>
 
   <ul>
     <li><b><u>A</u>utomatic (MC→MD/Bussi CSVR)</b><br>
@@ -389,18 +499,21 @@
 
     <a name="MCNPT"></a>
     <li><b>Monte Carlo N<u>P</u>T (Metropolis)</b><br>
-      The volume of the system randomly fluctuates in the
-      isothermal-isobaric (NPT) ensemble.  Again, the change of volume is
-      either accepted or rejected to maintain constant pressure on average.
-      Note that the simulation box is always drawn at the same size and the
-      sizes of molecules change instead.<br>
+      The volume of the system randomly fluctuates in the isothermal-isobaric
+      (NPT) ensemble.  Again, the change of volume is either accepted or
+      rejected to maintain constant pressure on average.  Note that the
+      simulation box is always drawn at the same size and the sizes of
+      molecules change instead.<br>
+      For experts: We use the volume measure μ=1/<i>V</i>, to be compatible
+      with MTK, see <a href="https://doi.org/10.1063/5.0193281">J. Janek and
+      J. Kolafa: <i>J. Chem. Phys.</i> 160, 184111 (2024)</a>.<br>
       If the barostat pressure is too low, the volume becomes too large.  In
       this case, an error is reported and the simulation switches to NVT.  You
       should change (increase) P from the cmd: input field.  Alternatively,
       stop simulation by the [▯&nbsp;run] button, then switch to NPT, then use
-      the P-slider, then restart simulation by the [▯&nbsp;run] button.<br>  The
-      trial volume change is not available via a slider; use cmd: dV=VALUE or
-      automatic setup by button [▯&nbsp;set&nbsp;MC&nbsp;move].
+      the P-slider, then restart simulation by the [▯&nbsp;run] button.<br>
+      The trial volume change is not available via a slider; use cmd: dV=VALUE
+      or automatic setup by button [▯&nbsp;set&nbsp;MC&nbsp;move].
     <li><b>Molecular Dynamics (NV<u>E</u>)</b><br>
       Molecular dynamics (MD) calculates trajectories of molecules in time
       by numerical integration of the Newtonian equations of motion.
@@ -442,7 +555,8 @@
       start by option -Pdt=VALUE, or from running simolant from field cmd:,
       variable dt.  The automatic timestep is set by dt=0.
       <br>
-      Before the MD simulation starts, new velocities are drawn from the Maxwell-Boltzmann distribution.
+      Before the MD simulation starts, new velocities are drawn from the
+      Maxwell–Boltzmann distribution.
       This applies to all MD methods.
     </li>
 
@@ -551,13 +665,12 @@
       The method is based on
       paper <a href="https://doi.org/10.1063/1.467468">G. J. Martyna,
         D. J. Tobias, M. L. Klein: <i>J. Chem. Phys.</i> 101, 4177 (1994)</a>,
-      for our implementation
-      see <a href="https://doi.org/10.1063/5.0193281">J. Janek,
+      for our implementation see <a href="https://doi.org/10.1063/5.0193281">J. Janek,
         J. Kolafa: <i>J. Chem. Phys.</i> 160, 184111 (2024)</a>.
   </ul>
 
   <a name="BC"></a>
-  <h3><font color="navy" face="sans"><i>Boundary conditions</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>B</u>oundary conditions</i></font></h3>
   <ul>
     <li><b><u>B</u>ox (soft walls)</b><br>
 
@@ -578,7 +691,7 @@
   </ul>
 
   <a name="Show"></a>
-  <h3><font color="navy" face="sans"><i>Show</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>S</u>how and measure</i></font></h3>
 
   <p>Select quantities to measure and show and a graph to draw.  If button
     [▯&nbsp;record] is pressed, the averages of the
@@ -597,16 +710,44 @@
     <li><b><u>Q</u>uantities</b><br>
 
       As above and additional quantities are measured and shown as text:<br>
-      Pressure (calculated from the virial of force); this pressure is used in
-      barostats<br> Diagonal components of the pressure tensor (calculated
-      from the virial of force)<br>
-      Components of pressure on walls (calculated from forces on walls, if
-      applicable)<br>
-      Line tension ("surface tension" in 2D).<br>
 
-      <p>
+      Pressure (calculated from the virial of force); this pressure is used in
+      barostats.
+      This pressure for thermostats conserving the linear momenta in the
+      periodic and slit boundary conditions include the “kinettip pressure
+      correction”.  Thus, the ideal gas in the limit of ρ→0 gives exact
+      compresibility factor, Z=1. See the MACSIMUS manual for details and
+      tests.  The respective kinetic energy scaling factors are printed as
+      qx,qy.<br>
+
+      Diagonal components of the pressure tensor (calculated from the virial
+      of force).<br>
+
+      Components of pressure on walls (calculated from forces on walls, if
+      applicable).<br>
+
+      Line tension ("surface tension" in 2D).<br>
         &nbsp; &nbsp; γ = Ly*(Pyy−Pxx) (makes sense only in the slab geometry).
-      </p>
+
+      Mean square displacement (MSD) measurement is started when
+      [▯&nbsp;record] is pressed.  The MSDs in x and y directions are
+      calculated separately.  The formula is<br>
+      &nbsp; &nbsp; MSDx(t) = ∑ [r(0).x−r(t).x]² / N<br>
+      and is applied for the last configuration in a block.
+      The algorithm operates with scaled coordinates (thus, NPT is valid) and
+      follows particle paths in the periodic boundary conditions.  If the
+      displacement from the previous position is greater than 0.45 L, error
+      message is issued and the MSD calculation is turned off.  The remedy is
+      to decrease the block size and/or stride.<br>
+
+      The slope of the linear part of MSD.x(t) and MSD.y(t)  is 2D in the periodic
+      boundary conditions, where D is the diffusivity.  This calculation is
+      rather imprecise (error ~1/√N); therefore, several shorter independent
+      measurements should be averaged.  (Ideally, overlapping blocks are
+      recommended, see
+      <a href="https://doi.org/10.1016/j.molliq.2006.12.015">J. Picálek, J.
+        Kolafa: J. Mol. Liq. 134, 29–33 (2007)</a>).<br>
+
 
       All the following options include these extended measurements, which
       are exported if <font face="helvetica">▯&nbsp;record</font> is pressed.</li>
@@ -691,7 +832,7 @@
   </ul>
 
   <a name="Tinker"></a>
-  <h3><font color="navy" face="sans"><i>Tinker</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>T</u>inker</i></font></h3>
 
   <p>Technical setup affecting performance.</p>
 
@@ -713,6 +854,10 @@
 
       Set the number of frames per second to 60. This is the default.
 
+    <li><b>FPS=12<u>0</u></b><br>
+
+      Set the number of frames per second to 120.
+
     <li><b>Timeout <u>9</u>9% of simulation (use if shaky)</b><br>
 
       If the simulation takes a longer time than is given by the FPS selected,
@@ -722,12 +867,17 @@
 
     <li><b>Timeout <u>5</u>0% of simulation</b><br>
 
-      The timeout is set to 50% of the simulation time.  This is the default.
+      The timeout is set to 50% of the simulation time.
 
-    <li><b>Timeout <u>2</u>5% of simulation</b><br>
+    <li><b>Timeout <u>2</u>0% of simulation (faster)</b><br>
 
-      The timeout is set to 25% of the simulation time.  Use this to speed up
-      the calculations at the expense of a less precise response.
+      The timeout is set to 20% of the simulation time.  Use this to speed up
+      the calculations, perhaps at the expense of a less precise response.
+
+    <li><b>Timeout <u>7</u>% of simulation (fastest)</b><br>
+
+      The timeout is set to 7% of the simulation time.  Use this to speed up
+      the calculations, at the expense of a less precise response.
 
   </ul>
 
@@ -758,8 +908,13 @@
 
   <a name="Variables"></a>
   <h3><font color="navy" face="sans"><i>Variables</i></font></h3>
+  <p>These parameters are shown during simulation in the right panel and also printed to the protocol simolant.txt</p>
   <table>
     <tr><td><font face="helvetica">N</font></td><td> Number of particles.</td></tr>
+    <tr><td><font face="helvetica">LJ c=</font></td><td> Cutoff for the Lennard-Jones-like potential.</td>
+    <tr><td><font face="helvetica">WCALJ</font></td><td> Repulsive potential (c=1.1892).</td>
+    <tr><td><font face="helvetica">PD a=</font></td><td> Penetrable disks spheres, a=potential depth.</td>
+    <tr><td><font face="helvetica">DWa,b,c</font></td><td> Double well with parameters a,b,c.</td>
     <tr><td><font face="helvetica">T</font></td><td> Thermostat or method temperature.</td></tr>
     <tr><td><font face="helvetica">τ</font></td><td> Thermostat correlation (coupling) time (MD only).</td></tr>
     <tr><td><font face="helvetica">L</font></td><td> Box size (as derived from density).</td></tr>
@@ -771,6 +926,10 @@
     <tr><td><font face="helvetica">P</font></td><td> Pressure (parameter of a NPT simulation)</td></tr>
     <tr><td><font face="helvetica">stride</font></td><td> stride MD steps or MC sweeps is performed between drawing the configuration and measuring quantities.</td></tr>
     <tr><td><font face="helvetica">block</font></td><td> Number of measurements in one block (by <font face="helvetica">stride</font> MC sweeps or MD steps).</td></tr>
+  </table>
+  <p>The following quantities are shown during simulation in the right panel and also printed to the protocol and convergence profiles.</p>
+  <table>
+    <tr><td><font color="blue" face="helvetica">t</font></td><td> Time or the number of MC sweeps from é during recording.</td></tr>
     <tr><td><font color="blue" face="helvetica">Tkin</font></td><td> Kinetic temperature (averaged in blocks, MD only).</td></tr>
     <tr><td><font color="blue" face="helvetica">Tbag</font></td><td> Creutz demon bag temperature (averaged, MC only).</td></tr>
     <tr><td><font color="blue" face="helvetica">dt</font></td><td> Integration time step (MD only); "dt⇒" denotes that dt has been determined automatically from T and τ.</td></tr>
@@ -778,20 +937,21 @@
     <tr><td><font color="blue" face="helvetica">acc.r/(V)</font></td><td> Acceptance ratio of volume change in NPT simulations</td></tr>
     <tr><td><font color="blue" face="helvetica">Pvir</font></td><td> Pressure (averaged configurational pressure based on the virial theorem incl. the kinetic term).</td></tr>
     <tr><td><font color="blue" face="helvetica">V</font></td><td> Volume (in NPT)</td></tr>
-    <tr><td><font color="blue" face="helvetica">Pid</font></td><td> Pressure calculated from the ideal gas equation of state, Pid = ρ kT (here, k=1).</td></tr>
-    <tr><td><font color="blue" face="helvetica">Z</font></td><td> Compressiility factor, Z=P/Pid.</td></tr>
+    <tr><td><font color="blue" face="helvetica">Z</font></td><td> Compressibility factor, Z=P/ρkT (where k=1); it holds Z=1 for ideal gas. In CREUTZ MC, T=⟨Tbag⟩. In NVE MD, T=⟨Tkin⟩. In NVT and NPT simulations, the thermostat T is used.  In NPT simulations, the barostat P is used and ρ=N/⟨V⟩. </td></tr>
     <tr><td><font color="blue" face="helvetica">Pxx</font></td><td> Diagonal <i>xx</i>-component of the pressure tensor (similarly Pyy).</td></tr>
     <tr><td><font color="blue" face="helvetica">P(top_wall)</font></td><td> Pressure calculated from averaged force on the top wall (similarly other walls).</td></tr>
+    <tr><td><font color="blue" face="helvetica">MSDx</font></td><td> Mean square displacement in x-direction, similarly MSDy.</td></tr>
     <tr><td><font color="blue" face="helvetica">γ</font></td><td> Surface tension (applies to the slab geometry).</td></tr>
     <tr><td><font color="blue" face="helvetica">Etot</font></td><td> Total (potential + kinetic) energy of the whole simulation box.</td></tr>
     <tr><td><font color="blue" face="helvetica">Epot</font></td><td> Potential energy of the whole simulation box.</td></tr>
     <tr><td><font color="blue" face="helvetica">H</font></td><td> Enthalpy.</td></tr>
+    <tr><td><font color="blue" face="helvetica">Econserved</font></td><td> Conserved energy (MD: NVE, NVT Nosé–Hoover, MTK).</td></tr>
   </table>
 
   <a name="Sliders"></a>
   <h3><font color="navy" face="sans"><i>Sliders panel</i></font></h3>
   <p>Sliders can be moved by a mouse or (when the mouse pointer is over)
-    finely by arrows.
+    finely by arrows.  The response of most sliders is not linear.
 
   <ul>
     <li><font face="helvetica">T</font> &nbsp;  Temperature.<br>
@@ -934,24 +1094,32 @@
       Both decimal comma and dot are accepted (irrespective of the comma
       toggle).  Available variables (input is not case-sensitive):
       <table>
-        <tr><th align=left>variable</th><th align=left>slider</th><th align=left>explanation</th>
-        <tr><td>cutoff</td><td>no</td><td>Potential cut-off.</td></tr>
-        <tr><td>T</td><td>yes</td><td>Thermostat temperature.</td></tr>
-        <tr><td>tau, τ</td><td>yes</td><td>Thermostat time constant (MD).</td></tr>
-        <tr><td>d</td><td>yes</td><td>MC displacement (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
-        <tr><td>dV</td><td>no</td><td>MC change of ln(V); can be adjusted by [▯&nbsp;set&nbsp;MC&nbsp;moves].</td></tr>
-        <tr><td>g</td><td>yes</td><td>Gravity.</td></tr>
-        <tr><td>rho, ρ</td><td>yes</td><td>Number density, ρ=N/V; L gets rcalculated.</td></tr>
-        <tr><td>wall</td><td>no</td><td>Wall number density (smoothed to make the material of walls).</td>
-        <tr><td>P</td><td>yes</td><td>Barostat pressure.</td></tr>
-        <tr><td>qtau, qτ&nbsp;</td><td>no</td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
-        <tr><td>L</td><td>no</td><td>Box size (density ρ gets recalculated).</td></tr>
-        <tr><td>dt, h</td><td>yes</td><td>Time step; 0=automatic.</td></tr>
-        <tr><td>stride</td><td>yes</td><td>Show each stride-th configuration.</td></tr>
-        <tr><td>block</td><td>yes</td><td>Measurements/block for statistics and graphs.</td></tr>
-        <tr><td>th</td><td>menu</td><td>Thermostat (in the order defined in the menu, 1st menu line=0).</td></tr>
+        <tr><th align=left>variable</th><th align=left>access</th><th align=left>explanation</th>
+        <tr><td>a</td><td>(menu)</td><td>Parameter of the <a href="#DW">double well</a> and  <a href="#PD">penetrable disks</a> potentials.</td></tr>
+        <tr><td>b</td><td>(menu)</td><td>Parameter of the <a href="#DW">double well</a> potential.</td></tr>
         <tr><td>bc</td><td>menu</td><td>Boundary conditions (0=box, 1=<it>y</it>-periodic, 2=periodic).</td></tr>
+        <tr><td>block</td><td>slider</td><td>Measurements/block for statistics and graphs.</td></tr>
+        <tr><td>circle</td><td>option -C</td><td>circle drawing method (0=fl_pie, 1=fl_circle, 2=composed of fl_line)</td></tr>
+        <tr><td>c</td><td>(menu)</td><td>Potential cut-off.</td></tr>
+        <tr><td>d</td><td>slider</td><td>MC displacement (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
+        <tr><td>dV</td><td></td><td>MC change of ln(V)   (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
+        <tr><td>dt, h</td><td></td><td>Time step; 0=automatic.</td></tr>
+        <tr><td>g</td><td>slider</td><td>Gravity.</td></tr>
+        <tr><td>L</td><td></td><td>Box size (density ρ gets recalculated).</td></tr>
+        <tr><td>measure</td><td>menu</td><td>Show and measure, integer from 0 in the order defined in the menu.</td></tr>
+        <tr><td>method</td><td>menu</td><td>Method (MC/MD, thermostat..), integer from 0 in the order defined in the menu.</td></tr>
+        <tr><td>N</td><td>slider</td><td>Number of particles.</td></tr>
+        <tr><td>nbr</td><td>Atom-atom distance limit to define neighbors (for coloring)</td></tr>
+        <tr><td>P</td><td>slider</td><td>Barostat pressure.</td></tr>
+        <tr><td>qtau, qτ&nbsp;</td><td></td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
+        <tr><td>rho, ρ</td><td>slider</td><td>Number density, ρ=N/V; L gets rcalculated.</td></tr>
+        <tr><td>show</td><td></td><td>The same as “measure”.</td></tr>
+        <tr><td>stride</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
+        <tr><td>T</td><td>slider</td><td>Thermostat temperature.</td></tr>
+        <tr><td>tau, τ</td><td>slider</td><td>Thermostat time constant (MD).</td></tr>
+        <tr><td>wall</td><td></td><td>Wall number density (smoothed to make the material of walls).</td>
       </table>
+      All these variables can also be used in option -P at start.
     </li>
   </ul>
 
@@ -979,6 +1147,8 @@
       <ul>
         <li> <b>Black</b> – Molecules are colored black (and this color is
           kept).</li>
+        <li> <b><i>O</i>ne</b> – Only one molecule is black, the remaining
+          ones are orange. Useful to illustrate Brownian motion.</li>
         <li> <b><i>y</i>-split</b> – Top half is colored red, bottom half
           blue (and these colors are kept).  Useful to study diffusion.</li>
         <li> <b>Neighbors</b> – Molecules are drawn in colors according
@@ -1030,9 +1200,9 @@
   <h2><font color="NAVY" face="SANS">Command line options</font></h2>
 
   <b><font color="magenta">FILE</font>.sim</b>
-  
+
   <p> An argument without leading hyphen is considered as a sim-file and loaded.</p>
-  
+
   <p>FLTK options are recognized. Note a space between the option and its (optional) value. Useful ones:</p>
   <table>
     <tr><td><b>-g <font color="magenta">WxH+X+Y</font></b></td><td>geometry (W,H=window width and height, X,Y = position).  Do not use less than -g 958x683</td></tr>
@@ -1042,13 +1212,15 @@
   </table>
   <p>SIMOLANT options are UPPERCASE. The following number/value is without space! No check is done whether the values given are in a reasonable range!</p>
   <table>
+    <tr><td><b><font color="magenta">file</font></b></td><td>sim-file (configuration) to open</td></tr>
     <tr><td><b>-C<font color="magenta">method</font></b></td><td>the circle drawing method: 0=fl_pie, 1=fl_circle, 2=composed of fl_line (default)</td></tr>
     <tr><td><b>-D<font color="magenta">steps</font></b></td><td>debug mode (timing and technical info printed to stderr every MD or MC steps), disabled in Windows (recompile with -mconsole instead of -mwindows)</td></tr>
     <tr><td><b>-F<font color="magenta">FPS</font></b></td><td>frames per second of movies (if possible), default=60</td></tr>
     <tr><td><b>-I<font color="magenta">init</font></b></td><td>(init=number) initial system (Gas=0, Diffusion=1, etc.)</td></tr>
     <tr><td><b>-N<font color="magenta">N</font></b></td><td>initial number of particles (legacy, also -PN=)</td></tr>
-    <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated. Executed after initialization (-I, -N)<br>Example: -Pwall=1,th=1</td></tr>
-    <tr><td><b>-S<font color="magenta">speed</font></b></td><td>initial value of the simulation speed slider [default=3.5], affects the timer and (for speed>=1) the number of the skipped frames. Normal range = [-5,11.5]</td></tr>
+    <tr><td><b>-N<font color="magenta">PROTOCOL</font></b></td><td>protocol name without extension, cf. menu File</td></tr>
+    <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated. Executed after initialization (-I, -N)<br>Example: -Pwall=1,method=1</td></tr>
+    <tr><td><b>-S<font color="magenta">speed</font></b></td><td>initial value of the simulation speed slider [default=3.5], affects the timer and (for speed>=1) the number of the skipped frames. Normal range = [-5,11.5], 11 or 11.5 means 10 and no delay</td></tr>
     <tr><td><b>-T<font color="magenta">factor</font></b></td><td>the timeout of the time is least factor times the simulation cycle duration [default=0.5]</td></tr>
     <tr><td><b>-U<font color="magenta">delay</font></b></td><td>additional delay in s, do not use [default=1e-5]</td></tr>
   </table>
@@ -1075,40 +1247,60 @@
   <p>The sources of SIMOLANT can be found on <a href="https://github.com/kolafaj/SIMOLANT">GitHub</a>.</p>
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
-    <ul>
-      <li>09/2024 help window and panel enlarged, Tinker menu added, timeouts
-      based on the measured simulation times, new button [invert] walls, CSV
-      output added, Okabe and Ito colorblind-safe palette</li>
-      <li>02/2024 small bug ~O(dt) fixed in the Bussi thermostat, default timestep changed, default qtau for MTK increased</li>
-      <li>04/2023 all whites ignored in a command (<tt>cmd:</tt> field), hints removed, bug (possible string overflow) fixed</li>
-      <li>03/2022 cumulative distribution functions added to the additional recorded output<br>
-        control of these additional outputs moved to a separate widget (not in menu File)
-        bug in surface tension fixed<br>
-        default thermostat changed to BUSSI (was BERENDSEN)
-      <li>12/2021 bug in surface tension introduced (returned to original good value 03/2022)<br>
-        NPT L limited to 1e10 to prevent crash in rare cases<br>
-        vertical density profile centered<br>
-        vertical density profile better NPT-compatible (Ly=sqrt(⟨L²⟩) used)</li>
-      <li>09/2021 variables _bc and _th (in Command:) renamed to th and bc<br>
-        bug fixed (Ekin for MC NPT was left from the previous step and not calculated from the T; thus, Pvir and H were incorrect)</li>
-      <li>10/2020 bugs fixed (wall force, show τ slider)</li>
-      <li>07/2020 barostats, cutoff, many GUI and control changes</li>
-      <li>10/2019 Bussi thermostat (Canonical Sampling through Velocity Rescaling) added
-      <li>05/2019 bug fixed (Creutz's bag), changes to satisfy the paranoic C++ compiler
-      <li>04/2018 bug fixed (command g=), small improvements
-      <li>03/2018 Maxwell-Boltzmann thermostat added, small improvements
-      <li>11/2017 convergence profile of total (kinetic+potential) energy added
-      <li>03/2017 comma accepted in cmd: input, toggle [,] will use decimal comma instead of period in the recorded files
-      <li>11/2016 bug fixed (rescaled window + periodic b.c. not properly shown)</li>
-      <li>10/2015 parameter input from keyboard added</li>
-      <li>03/2015 export of convergence profiles for further analysis added</li>
-    </ul>
+  <ul>
+    <li>01/2025 Bug fixed: After change of N while MC, the number of degrees of freedom was not updated leading to wrong results<br>
+     MSD also for nonperiodic b.c.</li>
+    <li>12/2024 More potentials added: WCA, double well, penetrable disks/spheres<br>
+      also velocities saved to .sim<br>
+      MSD added<br>
+      two droplets added
+    <li>11/2024 Cutoff smoothing bug fixed<br>
+      number of degrees of freedom for MTK was fixed; now lim<sub>ρ→0</sub>Z=1 also for small N<br>
+      nonstochastic NVT MD kinetic pressure corection added so that now lim<sub>ρ→0</sub>Z=1 also for small N<br>
+      outputs cleaned; particularly for Z</li>
+    <li>10/2024 Missing header after change of protocol name fixed<br>
+      g↔P swapped (was wrong in .txt protocol)<br> NPT volume measure μ=const
+      replaced by μ=1/V in MC NPT, to be compatible with MTK<br>
+    </li>
+    <li>09/2024 help window and panel enlarged<br>
+      Tinker menu added<br>
+      timeouts based on the measured simulation times<br>
+      new button [invert] walls<br>
+      CSV output added<br>
+      Okabe and Ito colorblind-safe palette<br>
+      backups on save removed</li>
+    <li>02/2024 small bug ~O(dt) fixed in the Bussi thermostat<br>
+      default timestep changed<br>
+      default qtau for MTK increased</li>
+    <li>04/2023 all whites ignored in a command (<tt>cmd:</tt> field), hints removed, bug (possible string overflow) fixed</li>
+    <li>03/2022 cumulative distribution functions added to the additional recorded output<br>
+      control of these additional outputs moved to a separate widget (not in menu File)
+      bug in surface tension fixed<br>
+      default thermostat changed to BUSSI (was BERENDSEN)
+    <li>12/2021 bug in surface tension introduced (returned to original good value 03/2022)<br>
+      NPT L limited to 1e10 to prevent crash in rare cases<br>
+      vertical density profile centered<br>
+      vertical density profile better NPT-compatible (Ly=sqrt(⟨L²⟩) used)</li>
+    <li>09/2021 variables _bc and _th (in Command:) renamed to th and bc<br>
+      bug fixed (Ekin for MC NPT was left from the previous step and not calculated from the T; thus, Pvir and H were incorrect)</li>
+    <li>10/2020 bugs fixed (wall force, show τ slider)</li>
+    <li>07/2020 barostats, cutoff, many GUI and control changes</li>
+    <li>10/2019 Bussi thermostat (Canonical Sampling through Velocity Rescaling) added
+    <li>05/2019 bug fixed (Creutz's bag), changes to satisfy the paranoic C++ compiler
+    <li>04/2018 bug fixed (command g=), small improvements
+    <li>03/2018 Maxwell-Boltzmann thermostat added, small improvements
+    <li>11/2017 convergence profile of total (kinetic+potential) energy added
+    <li>03/2017 comma accepted in cmd: input, toggle [,] will use decimal comma instead of period in the recorded files
+    <li>11/2016 bug fixed (rescaled window + periodic b.c. not properly shown)</li>
+    <li>10/2015 parameter input from keyboard added</li>
+    <li>03/2015 export of convergence profiles for further analysis added</li>
+  </ul>
   <h3><font color="navy" face="sans"><i>Supported by</i></font></h3>
-    <ul>
-      <li>2012–2013 TUL Liberec, EU: esf (evropský sociální fond v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost (FLTK version)</li>
-      <li>2001–now University of Chemistry and Technology, Prague (DOS+Turbo C/X11+*nix versions+FLTK versions)</li>
-      <li>1985–2001 Institute of Chemical Process Fundamentals (DOS+Pascal version)</li>
-    </ul>
+  <ul>
+    <li>2012–2013 TUL Liberec, EU: esf (evropský sociální fond v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost (FLTK version)</li>
+    <li>2001–now University of Chemistry and Technology, Prague (DOS+Turbo C/X11+*nix versions+FLTK versions)</li>
+    <li>1985–2001 Institute of Chemical Process Fundamentals (DOS+Pascal version)</li>
+  </ul>
 
   <h3><font color="navy" face="sans"><i>Acknowledgements</i></font></h3>
   <ul>

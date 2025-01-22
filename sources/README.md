@@ -15,6 +15,8 @@ You need gcc/g++ and FLTK (V1.3) installed.
 
 You need MinGW (with gcc/g++) and FLTK (V1.3) installed.
 
+Warning: may be obsolete, I have one ancient installation working and could not get a new one on Windows 11
+
 * For a dynamically linked version, see linux above.
 * For statically-linked versions, both standard (windows) and console, use:<br />
   `sh winmake.sh`
@@ -25,6 +27,8 @@ You need MinGW (with gcc/g++) and FLTK (V1.3) installed.
   `C:\MinGW\msys\1.0\home\<USER>`
 
 ## macOS
+
+I am not a Mac user. I suspect that it is in not possible to run a home-made executable on a different machine without being approved by authorities
 
 * To compile under macOS, Clang is recommended. You need FLTK (V1.3).
 * Info on [the old page](http://old.vscht.cz/fch/software/simolant/index-en.html) may help

@@ -1,5 +1,6 @@
 // Data recording - activated by radio buttom [▯ record]
 
+// hold the variable names and accumulated sums and sums of squared over blocks
 struct res_s {
   struct res_s *next;
   const char *name;
@@ -7,7 +8,7 @@ struct res_s {
   double sum,sumq;
 } *head;
 
-// to store the convergence profiles CP)
+// to store the convergence profiles (CP)
 struct CP_s {
   struct CP_s *next;
   char line[1]; // variable length
@@ -22,12 +23,17 @@ static char *space2_(const char *s) /******************************* space2_ */
   if (strlen(s)>15) return (char *)s;
   strcpy(conv,s);
   for (c=conv; *c; c++) if (*c==' ') *c='_';
-  
+
   return conv;
 }
 
-/* add measurement (for averages; if ((incl->value()&1)), then also append to CP */
-void addM(const char *name,double x) /********************************* addM */
+/* Add 1 measurement to a registered variable for to calculate a block average
+   'name' should not contain , ; Tab space
+   if ((incl->value()&1)), then also append a line to CP:
+     the names are printed to CP in reverse order
+   MDS is an exception, it is calculated at block end
+*/
+int addM(const char *name,double x) /********************************** addM */
 {
   struct res_s *a;
   static char line[1024]; // WARNING, fixed size!
@@ -35,6 +41,7 @@ void addM(const char *name,double x) /********************************* addM */
   int litem;
 
   if ((incl->value()&1)) {
+    // convergence profiles
     if (!name) {
       struct CP_s *CP;
       static struct CP_s *CPlast;
@@ -55,31 +62,41 @@ void addM(const char *name,double x) /********************************* addM */
 
       line[0]=0;
 
-      return; }
+      return 0; }
 
     litem=sprintf(item,"%g\t",x);
     memmove(line+litem,line,strlen(line)+1);
     memcpy(line,item,litem); }
 
-  if (!name) return;
+  if (!name) return 0;
 
   looplist (a,head) if (!strcmp(name,a->name)) {
-    a->sum+=x;
-    a->sumq+=x*x;
-    a->n++;
-    return; }
+    if (memcmp(name,"MSD",3)) {
+      a->sum+=x;
+      a->sumq+=x*x;
+      a->n++; }
+    else {
+      a->sum=x; // exceptional for MSDx,MSDy
+      a->sumq=t; 
+      a->n=1; }
+
+    goto ret; }
 
   a=(struct res_s*)malloc(sizeof(struct res_s));
   // a=new struct res_s;
   a->next=head;
   a->name=name;
   head=a;
-  head->n=1;
+  a->n=1;
   a->sum=x;
   a->sumq=x*x;
-}
 
-// change decimal points to commas if requested
+ ret:
+  //  fprintf(stderr,"%d %s %g\n",a->n,a->name,x);
+  return a->n;
+} // addM()
+
+// change decimal points to commas in place if requested
 void comma(char *s) /************************************************* comma */
 {
   if (buttons.comma->value())
@@ -103,7 +120,7 @@ void prtcsv(int i) /************************************************* prtcsv */
 void prtcsv(double d) /********************************************** prtcsv */
 {
   char x[16];
-  
+
   sprintf(x,"%g",d);
   comma(x);
   fprintf(files.csv,"%c%s",files.sep,x);
@@ -144,22 +161,18 @@ const char *wallsg(int key) /**************************************** wallsg */
 
 // show the measurements and record them
 // returns the record status (1=continue, 0=erased)
+// + set switch measureVar
 int showclearM() /*********************************************** showclearM */
 {
   struct res_s *a,*next;
   char *end;
   char butt0[80];
-  static int overwrite=1,i;
-  int choice;
+  int choice,i;
   double shift=0.5;
   FILE *out;
   struct CP_s *CP;
 
-  if (buttons.csv->value()) {
-
-  }
-  else
-    files.csv=NULL;
+  if (!buttons.csv->value()) files.csv=NULL;
 
   files.sep=",;"[(int)buttons.comma->value()]; // global
 
@@ -173,26 +186,34 @@ int showclearM() /*********************************************** showclearM */
 
   looplist (a,head) {
     double av=a->sum/a->n;
-    double stder=(a->sumq/a->n-Sqr(av))/(a->n-1);
+    double err=(a->sumq/a->n-Sqr(av))/(a->n-1);
+    char serr[32];
 
-    if (a->n<2 || stder<=0) stder=0;
-    else stder=sqrt(stder);
+    if (!memcmp("MSD",a->name,3))
+      sprintf(serr," at t=%g (last value)",a->sumq);
+    else if (a->n>1 && err>0) {
+      err=sqrt(err);
+      if (fabs(err)>=fabs(av))
+        sprintf(serr," ± %.3g",err);
+      else
+        sprintf(serr," ± %.3g (%.3g %%)",err,fabs(err/av*100)); }
+    else
+      serr[0]=0;
 
     if (a==head) end+=sprintf(end,"\
 %2d blocks (block length=%d, stride=%d)\n\
 ----------------------------------------\n\
-quantity = average ± standard error (relative error)\n\
+quantity = average ± standard error (relative standard error)\n\
 ",a->n,block,speed.stride);
 
-    end+=sprintf(end,"%s = %g ± %.3g (%.3g %%)\n",
-                 a->name,
-                 av,stder,fabs(stder/av*100)); }
+    end+=sprintf(end,"%s = %g%s\n", a->name, av,serr); }
+
   comma(files.info);
 
   if (head->n<2)
     choice=!fl_choice("Not enough blocks have been recorded.","Stop recording","Continue",NULL);
   else {
-    if (overwrite) {
+    if (files.nmeas==0) {
       if (strlen(files.protocol)<26) sprintf(butt0,"save (overwrite \"%s.{txt,csv}\") and clear",files.protocol);
       else strcpy(butt0,"save (overwrite protocol) and clear"); }
     else {
@@ -206,14 +227,15 @@ quantity = average ± standard error (relative error)\n\
 
   switch (choice) {
     case 0: // [continue]
+      files.record0=1;
       return 1;
 
     case 1: // [save]
       strcpy(files.ext,".txt");
-      out=fl_fopen(files.protocol,overwrite?"wt":"at");
+      out=fl_fopen(files.protocol,files.nmeas==0?"wt":"at");
       if (buttons.csv->value()) {
         strcpy(files.ext,".csv");
-        files.csv=fl_fopen(files.protocol,overwrite?"wt":"at");
+        files.csv=fl_fopen(files.protocol,files.nmeas==0?"wt":"at");
         if (!files.csv) fl_alert("cannot write the summary files.csv file"); }
       else
         files.csv=NULL;
@@ -224,7 +246,6 @@ quantity = average ± standard error (relative error)\n\
         char lout[512]; // 2* safety size
 
         files.nmeas++;
-        overwrite=0;
 
         if (files.nmeas==1)
           fprintf(out,"SIMOLANT VERSION %s\n",VERSION);
@@ -232,38 +253,50 @@ quantity = average ± standard error (relative error)\n\
         sprintf(lout,"\
 \n\
 =========== MEASUREMENT =========== # %d ===========\n\
+%s\n\
 Parameters:\n\
   N=%d number of particles\n\
   bc=%s boundary conditions\n\
-  method=\"%s\" MC/MD, thermostat/barostat\n\
-  T=%g temperature\n\
+  method=\"%s\"\n\
+  Nf=%d degrees of freedom\n\
+  qx,qy=%g,%g kinetic pressure correction factors\n\
+  T=%g temperature ⇒ B=%g (2nd virial coefficient)\n\
   P=%g pressure\n\
   g=%g gravity\n",
                 files.nmeas,
+                FFinfo(1),
                 N,
                 bc==BOX?"Box":bc==SLIT?"Slit":"Periodic",
-                thinfo[thermostat],T,gravity,P);
+                methodinfo[method],
+                En.Nf,
+                En.q.x,En.q.y,
+                T,ss.B2,
+                P,
+                gravity);
         comma(lout);
         fputs(lout,out);
 
         if (files.csv) {
           if (files.nmeas==1)
-            fprintf(files.csv,"#,N,bc,method,T,g,P,walls,rho_wall,L,rho,cutoff,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,enthalpy,err,Econserved,err\n");
+            // cf. info2csv below
+            fprintf(files.csv,"#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err\n");
           fprintf(files.csv,"%d",files.nmeas);
           prtcsv(N);
           prtcsv(bc);
-          fprintf(files.csv,"%c\"%s\"",files.sep,space2_(thinfo[thermostat])); // do not use prtcsv(char*)
+          fprintf(files.csv,"%c\"%s\"",files.sep,space2_(methodinfo[method])); // do not use prtcsv(char*)
           prtcsv(T);
-          prtcsv(gravity);
           prtcsv(P);
+          prtcsv(gravity);
           prtcsv(walls);
           prtcsv(walldens/PI);
           prtcsv(L);
           prtcsv(L2rho(L));
-          prtcsv(cutoff);
+          prtcsv(ss.C2);
+          prtcsv(ss.a);
+          prtcsv(ss.b);
           prtcsv(tau);
           prtcsv(qtau);
-          if (isMC(thermostat)) prtcsv(dt);
+          if (isMC(method)) prtcsv(dt);
           else prtcsv(d);
           prtcsv(dV);
           prtcsv(speed.stride);
@@ -294,7 +327,7 @@ Parameters:\n\
         sprintf(lout,"\
   L=%g box side\n\
   rho=%g  number density N/L²\n\
-  cutoff=%g potential cutoff (is also smoothed)\n",L,L2rho(L),cutoff);
+  c=%g a=%g b=%g potential cutoff and parameters\n",L,L2rho(L),ss.C2,ss.a,ss.b);
         comma(lout); fputs(lout,out);
 
         sprintf(lout,"\
@@ -321,8 +354,8 @@ Parameters:\n\
 
         fprintf(out,"\n----------------------------------------\n");
         fputs(files.info,out);
-        //        fprintf(stderr,"strlen(info)=%d\n",(int)(strlen(info)));
-        // <600 bytes detected, char info[2048] = safe size
+        // fprintf(stderr,"strlen(files.info)=%d\n",(int)(strlen(files.info)));
+        // ~650 bytes detected ⇒ files.info: char info[1024] = safe size
 
         if (files.csv) {
           // writing csv from re-parsed info string
@@ -337,13 +370,22 @@ Parameters:\n\
           info2csv("Pxx");
           info2csv("Pyy");
           info2csv("γ");
+          info2csv("H");
           info2csv("P(right_wall)");
           info2csv("P(left_wall)");
           info2csv("P(top_wall)");
           info2csv("P(bottom_wall)");
-          info2csv("H");
           info2csv("Econserved");
+          info2csv("MSDx");
+          info2csv("MSDy");
           fprintf(files.csv,"\n"); }
+
+        if (measureVar>1) {
+          fprintf(out,"\n----------------------------------------\nVariances (%d points, stride=%d)\n----------------------------------------\n",measureVar,speed.stride);
+          fprintf(out,"Var(V) = %g \n",(sumq.V-sums.V/measureVar)/(measureVar-1));
+          fprintf(out,"Var(H) = %g \n",(sumq.H-sums.H/measureVar)/(measureVar-1));
+          fprintf(out,"Var(Upot) = %g \n",(sumq.Upot-sums.Upot/measureVar)/(measureVar-1));
+          fprintf(out,"Var(%s) = %g \n",isMC(method)?"Tbag":"Ekin",(sumq.Ekin-sums.Ekin/measureVar)/(measureVar-1)); }
 
         if (CPhead && (incl->value()&1)) { // convergence profiles
 
@@ -403,8 +445,8 @@ Convergence profile (time development of quantities)\n\
           switch (measure) {
             case RDF:
               dpkey="RDF";
-              q=1./50;
-              if (isNPT(thermostat)) Q=L2rho(sum.V/iblock);
+              q=1./50; // grid per 1
+              if (isNPT(method)) Q=L2rho(sqrt(sum.V/iblock));
               else Q=L2rho(L);
               Q*=PI/5000; /* 50^2*2 */
               if (!files.csv) fprintf(out,"\
@@ -414,7 +456,7 @@ r\tg(r)\tN(r)\tKEY\n");
               break;
             case YPROFILE:
               dpkey="VDP";
-              if (isNPT(thermostat)) {
+              if (isNPT(method)) {
                 Q=(sum.V/iblock)/(HISTMAX*2);
                 q=sqrt(sum.V/iblock)/HISTMAX; }
               else {
@@ -432,7 +474,7 @@ y\tρ(y)\tN(y)\tKEY\n");
             default:
               dpkey="DRDP";
             qqq:
-              if (isNPT(thermostat)) {
+              if (isNPT(method)) {
                 q=sqrt(sum.V/iblock)/(HISTMAX*2);
                 Q=sum.V/iblock*(PI/Sqr(HISTMAX)/8); }
               else {
@@ -451,6 +493,7 @@ r\tρ(r)\tN(r)\tKEY\n"); }
               return 0; }
             fprintf(dpcsv,"#%c,%s,cumul\n",dpkey[0]=='V'?'y':'r',dpkey); }
 
+          /* print RDF and density profiles to string lout */
           loop (i,0,HISTMAX) {
             if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
@@ -458,10 +501,11 @@ r\tρ(r)\tN(r)\tKEY\n"); }
             else sprintf(lout,"%g\t%g\t%g\t%s%d\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q,dpkey,files.nmeas);
             if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
-            comma(lout);
+
+            comma(lout); // change . to ,
 
             if (dpcsv) {
-              csvline(lout);
+              csvline(lout); // change tab CSV separator
               fprintf(dpcsv,"%s",lout); }
             else
               fputs(lout,out); }
@@ -471,6 +515,7 @@ r\tρ(r)\tN(r)\tKEY\n"); }
         fclose(out); }
 
     case 2: // [clear]
+      measureVar=0;
       // erasing recorded data
       for (a=head; a; a=next) {
         next=a->next;

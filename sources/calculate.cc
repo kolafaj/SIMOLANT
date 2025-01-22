@@ -1,5 +1,5 @@
 // Simulation code
-// This code was originally written in Pascal (with Turbo graphics),
+// This core of this code was originally written in DOS Pascal+Turbo graphics,
 // then rewritten to C (with Turbo graphics),
 // and then Turbo-graphics was emulated by X11.
 // This version includes graphics rewritten to FLTK.
@@ -9,6 +9,7 @@
 #define MAXRHO 1.1
 #define PROBDMAX 0.03 // of long MC move, default
 #define NPOW 3        // power function for the N-slider
+#define MAXDV 0.25    // max dV: box scaling is max exp(MAXDV)
 
 #define MINT 0.1 // minimum temperature
 #define MAXT 5 // maximum temperature
@@ -19,21 +20,26 @@
 #define MING -0.2 // minimum gravity
 #define MAXG 0.2 // maximum gravity
 
-#define CUTOFF 4 // default cutoff
+#define DSCALE 7 // MC displacement d (in units of Lh) d=L/2*exp(min MC displacement d), in the unit of L/2, for log-based slider
 
-#define DSCALE 7 // MC displacement d (in units of Lh) d=L/2*exp(min MC displacement d, in the unit of L/2, for log-based slider
+#define TRVP 2 // time-reversible velocity predictor length
+#if TRVP<1 || TRVP>2
+#  error "unsupported TRVP (1 or 2 allowed, 2 recommended)"
+#endif
 
 // List of variables exported to the 1st line of sim-files;
 // if changed, also the formats must be updated.
-#define SIMVARS N,bc,walls,T,L,walldens,dt,d,thermostat,P,dV
-#define STR(X) #X
+#define SIMVARS   N,bc,walls,T,L,walldens,dt,d,method,P,dV,tau,qtau,gravity,ss.a,ss.b,ss.C2
+#define SIMVARSQ "N bc walls T L wall dt d method P dV tau qtau g a b c"
 
 typedef struct {
   double x,y;
 } vector;
 
+vector zero={0,0};
+
 double gravity;  /* acceleration of gravity */
-double walldens=0.75*PI; /* rho_wall = walldens/PI = density of smoothed 
+double walldens=0.75*PI; /* rho_wall = walldens/PI = density of smoothed
                             atoms on walls; 0.75 ~ triple point liquid */
 int N=300; /* # of atoms */
 double L=20,Lh; /* box size, Lh=L/2 */
@@ -42,38 +48,58 @@ double P=1; /* pressure as NPT parameter */
 double qtau=5; /* tauP/tau, for Berendsen and MTK barostat */
 double Tk; /* Tk=kinetic T (MD) or demon T (Creutz MC) */
 double bag; /* Creutz daemon bag: static */
-double d; /* displacement, in Lh=L/2 */
-double dV; /* volume displacement, relative (=in ln(L)) */
+double d=0.5; /* MC displacement, in Lh=L/2 */
+double dV=0.1; /* MC volume displacement, relative (=in ln(L)) */
 double t=0; /* MD time or MC steps (for CP only) */
 vector r[MAXN],v[MAXN],a[MAXN]; /* configuration, velocities, accelerations */
+vector r0[MAXN]; /* configuration, at recording start, divided by L */
+vector rpbc[MAXN]; /* configuration, followed periodic b.c., divided by L */
+int MSDskip; /* skip MSD calculation (set after error cannot follow periodic b.c.) */
 vector vlast[MAXN]; /* velocity(t-3*dt/2) for Nose-Hoover + TRVP */
-double xi,xiv,xivlast,xivpred; /* Nose-Hoover variable, xivlast=xiv(t-3*dt/2) */
-double lambdav,lambdavlast,lambdavpred; /* MTK ln(L) */
-double Econserved,Ekin; /* total energy incl. extended degrees of freedom */
+vector vllast[MAXN]; /* velocity(t-5*dt/2) for Nose-Hoover + TRVP */
+double xi,xiv,xivlast,xivllast,xivpred; /* Nose-Hoover variable, xivlast=xiv(t-3*dt/2), xivllast=xiv(t-5*dt/2) */
+double lambdav,lambdavlast,lambdavllast,lambdavpred; /* MTK ln(L) */
+double Econserved; /* total energy incl. extended degrees of freedom */
 int justreset=1; /* reset scaling of energy convergence profile */
 int debug=0; /* verbose debug mode */
 int circlemethod=2; /* 0=fl_pie  1=fl_circle  2=custom of fl_line */
 int iblock,block; // stride moved to speed.stride
-int delayed_y_color=0;
+int delayed_y_color=0; // hack for DIFFUSION (color half AFTER MC)
+int nimg; // for cutoff>Lh: number of images
 
-// it's called thermostat, but it includes NVE and NPT
+// method: thermostat/barostat/MC/MD
 // the order is the same as in the menu; AUTO is not used (directly)
-enum thermostat_t     {AUTO,       CREUTZ,         METROPOLIS,          MCNPT,             NVE,     BERENDSEN,         NOSE_HOOVER,  ANDERSEN,         MAXWELL,         LANGEVIN,         BUSSI,     MDNPT,             MTK, NTH}
-  thermostat=BUSSI,mauto;
-const char *thinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al." };
+enum method_e                {AUTO,       CREUTZ,         METROPOLIS,         MCNPT,              NVE,     BERENDSEN,         NOSE_HOOVER,         ANDERSEN,         MAXWELL,              LANGEVIN,         BUSSI,          MDNPT,             MTK, NTH}
+  method=BUSSI,mauto;
+const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al." };
 int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selected MD starts
-int mymessage;
+#if 1
+#define NOERROR 0
+#define MDFAILED 1
+#define NPTFAILED 2
+#define MSDFAILED 3
+int errmessage=NOERROR;
+#else
+// this line issues ERROR "expected identifier before {" on Winfows:
+enum errmessage_e {NOERROR,MDFAILED,NPTFAILED,MSDFAILED} errmessage=NOERROR;
+#endif
 
-#define isMC(thermostat) (thermostat>=CREUTZ && thermostat<=MCNPT)
-#define isMD(thermostat) (thermostat>=NVE)
-#define isNPT(thermostat) (thermostat==MCNPT || thermostat==MDNPT || thermostat==MTK)
+int wasMDerror; // previously MDFAILED - to break "Switching temporarily to Monte Carlo…" loop
 
-enum bctype {BOX,SLIT,PERIODIC} bc=BOX; /* boundary conditions */
+enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_KEEP};
+
+#define isMC(method) (method>=CREUTZ && method<=MCNPT)
+#define isMD(method) (method>=NVE)
+#define isNPT(method) (method==MCNPT || method==MDNPT || method==MTK)
+#define isNVE(method) (method==CREUTZ || method==NVE)
+
+enum bctype {BOX,SLIT,PERIODIC} bc=BOX; // boundary conditions
+typedef double (*function_t)(double r); // for potential() and forces()
 
 // NB: order important - >= used
 enum cfg_t {GAS,DIFFUSION,GRAVITY,
             VLE,SLAB,NUCLEATION,
-            LIQUID,CAPILLARY,CAVITY,
+            LIQUID,TWODROPS,CAVITY,CAPILLARY,
             CRYSTAL,DEFECT,VACANCY,INTERSTITIAL,
             SENTINEL} cfg=GAS; /* initial cfg. */
 
@@ -81,34 +107,43 @@ int accepted=0,Vaccepted=0; /* # of accepted MC moves */
 
 double acc=0.3; /* acceptance ratio for auto set */
 double tau=1; /* MD thermostat time constant */
-double range=Sqr(RNBR); /* range^2 for counting neighbors (hotkey 'N') */
 
 double dt=0.02,dtadj=0.02,dtfixed; /* MD timestep, adaptive version, fixed */
-struct P_s {
-  double xx,yy; /* diagonal components of the pressure tensor */
+
+struct En_s {
+  vector P;  // diagonal components of the pressure tensor, P_cfg
+             // (first, the virial only, then the kin part is added)
+  vector Ek; // ∑ vx², ∑ vy², then corrected by qx,qy
+  double Ekin; // total kinetic energy = (Ek.x+Ek.y)/2
+  vector q; // kinetic pressure corrections:
+            //   En.Ek*=En.q; P=(virial+Ek)/L² (diagonal terms)
   double fwx,fwxL,fwy,fwyL; /* direct pressure on walls */
-} Pcfg;
-double Upot; /* potential energy */
+  double Upot; // potential energy
+  double H; // enthalpy
+  vector MSD; // mean square displacement
+  int Nf; // see degrees_of_freedom()
+} En; // the same name as in MACSIMUS
 
 /* the last 2 enum types must be RPROFILE,CPROFILE */
 enum measure_t { NONE,QUANTITIES,ENERGY,TEMPERATURE,PRESSURE,VOLUME,INTMOTION,RDF,YPROFILE,RPROFILE,CPROFILE,NMEASURE } measure;
-const char *minfo[NMEASURE]={"None","Quantities","Energy","Temperature","Pressure","Volume","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
+const char *measureinfo[NMEASURE]={"None","Quantities","Energy","Temperature","Pressure","Volume","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
 
+/* for mean values over blocks - sums accumulated using addM() */
 struct sum_s {
-  double Pxx,Pyy,U,Ekin,Tk,V,H,Econserved;
-  double fwx,fwxL,fwy,fwyL;
-  double ar,Var;
-} sum;
+  vector P; // diagonal of pressure tensor
+  double U,Ekin,Tk,V,H,Econserved;
+  double fwx,fwxL,fwy,fwyL; // forces on walls
+  double accr,Vaccr; // acceptance ratios in MC
+  double MSD; // MSD from r0, averaged over N
+} sum; // sums accumulated
 
-int boxsize=600;
-double scale;
-
-char ch;
-char st[32];
-int hot=1;
-int ndelay=1;
-
-FILE *plb;
+/* for variances of selected quantities */
+struct sumVar_s {
+  double Upot,Ekin,V,H;
+} sum0, // 1st value
+  sums, // sum (from 1st value)
+  sumq; // sums of squares (from 1st value)
+int measureVar; // number of measurements in sumq
 
 #include <sys/time.h>
 /* real time in better resolution (10^-6 s if provided by the system) */
@@ -128,86 +163,26 @@ double sqr(double x) /************************************************** sqr */
   return x*x;
 }
 
-double cutoff=CUTOFF;
+#include "forcefield.cc"
 
-struct ss_s {
-  double C1q; // C1^2
-  double C2q; // C2^2 (C2=cutoff)
-  double A,A4; // constants in the smoothed part
-} ss;
-
-/* truncated potential as a function of rr=r^2, rr<cutoff^2 assumed */
-inline
-double u(double rr) /***************************************************** u */
+void degrees_of_freedom() /****************************** degrees_of_freedom */
 {
-  if (rr>ss.C2q)
-    return 0;
-  else if (rr<ss.C1q) {
-    rr=1/Sqr(rr);
-    return 4*(Sqr(rr)-rr); }
-  else {
-    return ss.A*Sqr(rr-ss.C2q); }
+  /* total number of mechanical degrees of fredom not counting conserved momenta */
+  En.Nf=2*N;
+  En.q.x=En.q.y=1;
+  if (!isMC(method) && method!=ANDERSEN && method!=LANGEVIN && method!=MAXWELL)
+    switch (bc) {
+      case BOX: break;
+      case SLIT:
+        En.q.x=(double)N/(N-1);
+        En.Nf=2*N-1; break;
+      case PERIODIC:
+        En.q.x=En.q.y=(double)N/(N-1);
+        En.Nf=2*N-2; break; }
+  if (method==MTK) En.q.x=En.q.y=1;
 }
 
-/* truncated forces/r as a function of rr=r^2, rr<cutoff^2 assumed */
-inline
-double f(double rr) /***************************************************** f */
-{
-  if (rr>ss.C2q)
-    return 0;
-  else if (rr<ss.C1q) {
-    double r4=Sqr(rr);
-    return (32/r4-16)/(rr*r4); }
-  else {
-    return ss.A4*(rr-ss.C2q); }
-}
-
-/* smooth cutoff setup */
-void setss(void) /**************************************************** setss */
-{
-  double oldC1,C1,C2;
-  int n;
-
-  ss.C2q=1e99;
-  ss.C1q=1e99;
-
- again:
-  C2=cutoff;
-  C1=0.7*C2;
-
-  n=0;
-  do {
-    double den=f(C1*C1)*C1;
-
-    oldC1=C1;
-    C1=1+4*u(C1*C1)/C1/den;
-    if (fabs(den)<1e-50 || n++>2000 || C1<0 || C2<1.2) {
-      cutoff=CUTOFF;
-      fl_alert("Cannot determine smooth cutoff.\n\
-The default cutoff=%d is used.",CUTOFF);
-      goto again; }
-    C1=C2/sqrt(C1);
-  } while (fabs(1-C1/oldC1) > 1e-15);
-
-  if (C1>0.999*C2 || C1<0.5*C2) {
-    cutoff=CUTOFF;
-    fl_alert("Cannot determine smooth cutoff.\n\
-The default cutoff=%d is used.",CUTOFF);
-    goto again; }
-
-  ss.A=u(C1*C1)/Sqr(C2*C2-C1*C1);
-  ss.A4=-f(C1*C1)/(C2*C2-C1*C1);
-  ss.C2q=C2*C2;
-  ss.C1q=C1*C1;
-}
-
-int degrees_of_freedom() /******************************* degrees_of_freedom */
-{
-  if (thermostat==ANDERSEN || thermostat==LANGEVIN || thermostat==MAXWELL) return 2*N;
-  else return 2*N-(int)bc;
-}
-
-/* very approximate EOS for barostat */
+/* very approximate EOS for MDNPT (Berendsen barostat) */
 double EOS(double T,double rho) /*************************************** EOS */
 {
   return T*rho + (exp(2*pow(rho,1.2))-1);
@@ -267,8 +242,7 @@ double rho2L(double rho) /******************************************** rho2L */
     default: return sqrt(N/rho); }
 }
 
-typedef double (*walltype)(double r);
-walltype uwallx,fwallx,uwally,fwally,uwallxL,fwallxL,uwallyL,fwallyL;
+function_t uwallx,fwallx,uwally,fwally,uwallxL,fwallxL,uwallyL,fwallyL;
 int walls; // flags: 1=x,2=xL,4=y,8=yL; set=attractive, unset=repulsive
 
 void setwalls() /************************************************** setwalls */
@@ -376,11 +350,39 @@ void dtadjset() /************************************************** dtadjset */
     dtadj=dtfixed;
   else {
     dtadj=0.018/sqrt(T);
-    if (dtadj>0.03) dtadj=0.03;
-    if (thermostat==NOSE_HOOVER || thermostat==MTK || thermostat==BUSSI)
-      dtadj=(1-(thermostat==MTK)*0.2)/sqrt(1/Sqr(dtadj)+Sqr(8/tau));
-    else if (thermostat==NVE) {
+    /* low temp limit; not that for NVE, T may be irrelevant */
+    if (dtadj>0.025) dtadj=0.025;
+    if (u==uDW)
+      if (dtadj>0.02) dtadj=0.02; // DW needs a shorter timestep
+    if (method==NOSE_HOOVER || method==MTK || method==BUSSI)
+      dtadj=(1-(method==MTK)*0.2)/sqrt(1/Sqr(dtadj)+Sqr(8/tau));
+    else if (method==NVE) {
       if (dtadj>0.014) dtadj=0.014; } }
+}
+
+void MDreset(method_e th) /***************************************** MDreset */
+{
+  double vv=sqrt(T);
+  int i;
+
+  method=th;
+  loop (i,0,N) randomv(i,vv);
+
+  if (method==NOSE_HOOVER || method==MTK) {
+    xivlast=xivllast=xiv=xi=0;
+    loop (i,0,N) vlast[i]=vllast[i]=v[i];
+    lambdavlast=lambdavllast=lambdav=0; }
+
+  degrees_of_freedom();
+  dtadjset();
+}
+
+void MCreset(method_e th) /***************************************** MDreset */
+{
+  method=th;
+  degrees_of_freedom();
+  bag=T;
+  if (wasMDerror) mauto=AUTO; // kill the "switching temporarily to Monte Carlo…" loop
 }
 
 void initcfg(enum cfg_t cfg) /************************************** initcfg */
@@ -394,11 +396,11 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
   measure=RDF;
   tau=1;
-  colormode->value(0); // black
+  colormode->value(CM_BLACK); // black
   drawmode->value(0); // movie
   molsize->value(0); // full size
 
-  thermostat=METROPOLIS;
+  MCreset(METROPOLIS);
   d=0.1;
   gravity=0;
   walls=0;
@@ -411,7 +413,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
     case DIFFUSION:
       delayed_y_color++;
       molblack();
-      colormode->value(0); // black for now
+      colormode->value(CM_BLACK); // black for now
     case GAS:
       /* initial random configuration in a box */
       loop (i,0,N) {
@@ -466,18 +468,6 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       mauto=LANGEVIN;
       break;
 
-    case CAPILLARY:
-      /* box, layer at bottom */
-      L=rho2L(0.35); Lh=L/2;
-      loop (i,0,N) {
-        r[i].x=0.5+rnd()*(L-1); r[i].y=0.5+(rnd()*0.5+0.5)*(L-1); }
-      T=0.6;
-      gravity=-0.01;
-      walls=15-4;
-      mcstart=60;
-      measure=YPROFILE;
-      break;
-
     case CAVITY:
       /* cavity in attractive box */
       measure=CPROFILE;
@@ -502,6 +492,31 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
         while (Sqr(r[i].x-Lh)+Sqr(r[i].y-Lh)>N/2); }
       T=0.6;
       mcstart=50;
+      break;
+
+    case TWODROPS:
+      /* two droplets */
+      bc=PERIODIC;
+      L=rho2L(0.15); Lh=L/2;
+      measure=TEMPERATURE;
+      loop (i,0,N) {
+        do {
+          r[i].x=rnd()*L; r[i].y=rnd()*L; }
+        while (Sqr(r[i].x-Lh/2)+Sqr(r[i].y-Lh/2)>N/4 && Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>N/4); }
+      T=0.55;
+      mcstart=50;
+      break;
+
+    case CAPILLARY:
+      /* box, layer at bottom */
+      L=rho2L(0.35); Lh=L/2;
+      loop (i,0,N) {
+        r[i].x=0.5+rnd()*(L-1); r[i].y=0.5+(rnd()*0.5+0.5)*(L-1); }
+      T=0.6;
+      gravity=-0.01;
+      walls=15-4;
+      mcstart=60;
+      measure=YPROFILE;
       break;
 
     default: // crystals
@@ -550,10 +565,10 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
   if (debug) {
     printf("# initial cfg: N=%d cfg=%d\n",N,cfg);
-    loop (i,0,N) printf("%g %g\n",r[i].x,r[i].y); }
+    loop (i,0,N) printf("%g %g XY\n",r[i].x,r[i].y); }
 
   dtadjset();
-  if (cfg>=CRYSTAL) colormode->value(2);
+  if (cfg>=CRYSTAL) colormode->value(CM_NEIGHBORS);
   put_data();
 }
 
@@ -578,7 +593,8 @@ void insdel(int newN) /********************************************** insdel */
       j=(int)(i*rnd());
       if (j<i-1) r[j]=r[i-1]; }
   N=newN;
-}
+  degrees_of_freedom();
+} // insdel()
 
 void addPonly(double dx,double dy) /******************************* addPonly */
 {
@@ -586,10 +602,10 @@ void addPonly(double dx,double dy) /******************************* addPonly */
   double ff=f(rr);
 
   //  P+=rr*f(rr);
-  Pcfg.xx+=dx*dx*ff;
-  Pcfg.yy+=dy*dy*ff;
-  Upot+=u(rr);
-}
+  En.P.x+=dx*dx*ff;
+  En.P.y+=dy*dy*ff;
+  En.Upot+=u(rr);
+} // addPonly
 
 void addPRDF(double dx,double dy) /********************************* addPRDF */
 {
@@ -598,12 +614,12 @@ void addPRDF(double dx,double dy) /********************************* addPRDF */
   double ff=f(rr);
 
   //  P+=rr*f(rr);
-  Pcfg.xx+=dx*dx*ff;
-  Pcfg.yy+=dy*dy*ff;
-  Upot+=u(rr);
+  En.P.x+=dx*dx*ff;
+  En.P.y+=dy*dy*ff;
+  En.Upot+=u(rr);
   ir=(unsigned)(sqrt(rr)*(double)HISTGRID);
   if (ir<=HISTMAX) hist[ir]++;
-}
+} // addPRDF
 
 void (*addP)(double dx,double dy);
 
@@ -637,49 +653,33 @@ void cfgcenter() /************************************************ cfgcenter */
   loop (i,0,N) s+=sin(r[i].y*q),c+=cos(r[i].y*q);
   shift.y=atan2(s,c)/q+L; // mass center
   shift.y+=Lh; // void center
-}
+} // cfgcenter()
 
-void MDreset(thermostat_t th) /************************************* MDreset */
-{
-  double vv=sqrt(T);
-  int i;
-
-  thermostat=th;
-  loop (i,0,N) randomv(i,vv);
-
-  if (thermostat==NOSE_HOOVER || thermostat==MTK) {
-    xivlast=xiv=xi=0;
-    loop (i,0,N) vlast[i]=v[i];
-    if (thermostat==MTK)
-      lambdavlast=lambdav=0; }
-
-  dtadjset();
-}
-
-void writesim(const char *fn) /************************************ writesim */
+void savesim(const char *fn) /************************************** savesim */
 {
   FILE *out=fl_fopen(fn,"wt");
   int i;
 
-  if (out) {
-    fprintf(out,"%d %d %d %g %g %g %g %g %d %g %g # " STR(SIMVARS) "\n", SIMVARS);
-    fprintf(out,"#  x         y\n");
-    loop (i,0,N) fprintf(out,"%9.5f %9.5f\n",r[i].x,r[i].y);
+  if (out) {//  N bc walls T L wall dt d method
+    //                                      P dV tau qτ g a  b  c"
+    fprintf(out,"%d %d %d %g %g %g %g %g %d %g %g %g %g %g %g %g %g # " SIMVARSQ "\n", SIMVARS);
+    fprintf(out,"#  x         y        vx        vy\n");
+    loop (i,0,N) fprintf(out,"%9.5f %9.5f %9.5f %9.5f\n",r[i].x,r[i].y,v[i].x,v[i].y);
     fclose(out); }
-}
+} // savesim()
 
 void MDerror(void) /************************************************ MDerror */
 {
-  if (debug) writesim("debug.sim");
-  if (!mauto) mymessage=1;
+  if (debug) savesim("debug.sim");
+  if (!mauto) errmessage=MDFAILED;
   mcstart=256;
   if (N>500) mcstart=128000/N;
   d=0.1;
   setd->value(1);
-  mauto=thermostat;
-  thermostat = isNPT(mauto) ? MCNPT : METROPOLIS;
+  mauto=method;
+  method = isNPT(mauto) ? MCNPT : METROPOLIS;
 
-  if (std::isnan(L) || L>sqrt(N)*100) {
+  if (std::isnan(L) || L>sqrt(N)*100 || L<sqrt(N)*0.1) {
     // NPT failed (e.g., P<0) => total reset
     int i;
 
@@ -690,7 +690,7 @@ void MDerror(void) /************************************************ MDerror */
       r[i].y=rnd()*(L-1)+0.5;
       v[i].x=0;
       v[i].y=0; } }
-}
+} // MDerror()
 
 void debugtimer(const char *info) /****************************** debugtimer */
 {
@@ -731,11 +731,12 @@ timing (all times are in s):\n\
 void MDstep(void) /************************************************** MDstep */
 {
   vector momentum,ri,rt;
-  double ff,vv,xx,maxvv;
-  double vf;
+  double ff,maxvv;
+  double Vf;
   int i,j,k,l;
-  int ndegf=degrees_of_freedom();
-  int nimg=cutoff/L+1; // # of replicas if cutoff<Lh
+
+  degrees_of_freedom();
+  nimg=ss.C2/L+1; // # of replicas if cutoff<Lh
 
   dtadjset();
   dt=dtadj;
@@ -750,27 +751,40 @@ void MDstep(void) /************************************************** MDstep */
       if (bc==BOX) a[i].x=fwallx(ri.x)-fwallxL(L-ri.x);
       else a[i].x=0; }
 
-  /* calculate atom-atom pair forces */
+  if (method==MTK) En.P.x=En.P.y=0; // pressure tensor every step for MTK
+
+  /* calculate atom-atom pair forces; for MTK also the virial of force */
   switch (bc) {
     case BOX:
       loop (i,0,N) {
         ri=r[i];
+        if (method==MTK) {
+          En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
+          En.P.x+=ri.x*fwallx(ri.x)+(L-ri.x)*fwallxL(L-ri.x); }
         loop (j,i+1,N) {
           rt.x=ri.x-r[j].x; rt.y=ri.y-r[j].y;
           ff=f(Sqr(rt.x)+Sqr(rt.y));
+          if (method==MTK) {
+            En.P.x+=Sqr(rt.x)*ff;
+            En.P.y+=Sqr(rt.y)*ff; }
           a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
           a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
       break;
     case SLIT:
-      if (cutoff<Lh)
+      if (ss.C2<Lh)
         loop (i,0,N) {
           ri=r[i];
+          if (method==MTK)
+            En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
           loop (j,i+1,N) {
             rt.x=ri.x-r[j].x;
             if (rt.x>Lh) rt.x=rt.x-L;
             if (rt.x<-Lh) rt.x=rt.x+L;
             rt.y=ri.y-r[j].y;
             ff=f(Sqr(rt.x)+Sqr(rt.y));
+            if (method==MTK) {
+              En.P.x+=Sqr(rt.x)*ff;
+              En.P.y+=Sqr(rt.y)*ff; }
             a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
             a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
         else
@@ -781,11 +795,14 @@ void MDstep(void) /************************************************** MDstep */
                 rt.x=ri.x-r[j].x+L*k;
                 rt.y=ri.y-r[j].y;
                 ff=f(Sqr(rt.x)+Sqr(rt.y));
+                if (method==MTK) {
+                  En.P.x+=Sqr(rt.x)*ff;
+                  En.P.y+=Sqr(rt.y)*ff; }
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
                 a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
       break;
     case PERIODIC:
-      if (cutoff<Lh)
+      if (ss.C2<Lh)
         loop (i,0,N) {
           ri=r[i];
           loop (j,i+1,N) {
@@ -796,6 +813,9 @@ void MDstep(void) /************************************************** MDstep */
             if (rt.y>Lh) rt.y=rt.y-L;
             if (rt.y<-Lh) rt.y=rt.y+L;
             ff=f(Sqr(rt.x)+Sqr(rt.y));
+            if (method==MTK) {
+              En.P.x+=Sqr(rt.x)*ff;
+              En.P.y+=Sqr(rt.y)*ff; }
             a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
             a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
       else
@@ -807,35 +827,51 @@ void MDstep(void) /************************************************** MDstep */
               loopto (l,-nimg,nimg) {
                 rt.y=ri.y-r[j].y+L*l;
                 ff=f(Sqr(rt.x)+Sqr(rt.y));
+                if (method==MTK) {
+                  En.P.x+=Sqr(rt.x)*ff;
+                  En.P.y+=Sqr(rt.y)*ff; }
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
                 a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } }}
   }
 
-  if (thermostat==LANGEVIN) {
+  if (method==LANGEVIN) {
     /* random force by the fluctuation-dissipation theorem */
-    vv=sqrt(T/(tau*dt));
+    double vv=sqrt(T/(tau*dt));
     loop (i,0,N) { a[i].x+=vv*rndgauss(); a[i].y+=vv*rndgauss(); } }
 
-  if (thermostat==NOSE_HOOVER || thermostat==MTK) {
-    /* velocity predictor TRVP(k=1), and acceleration modification
-       see J. Chem. Theory Comput. 2011, 7, 3596–3607 
-       @-codes below refer to the 3D MTK algorithm in the MACSIMUS manual */
+  if (method==NOSE_HOOVER || method==MTK) {
+    /* velocity predictor TRVP(k=1,2)
+       see J. Chem. Theory Comput. 2011, 7, 3596 [doi.org/10.1021/ct200108g]
+       @* below refer to the MACSIMUS code (in 3D) and manual */
 
-    vf=xivpred=1.5*xiv-0.5*xivlast; // @4
-    xivlast=xiv;
+#if TRVP==1
+    Vf=xivpred=1.5*xiv-0.5*xivlast; // @4
+#else
+    Vf=xivpred=5./3*xiv-5./6*xivlast+xivllast/6.; // @4
+#endif
+    xivllast=xivlast; xivlast=xiv;
 
-    if (thermostat==MTK) {
+    if (method==MTK) {
+#if TRVP==1
       lambdavpred=1.5*lambdav-0.5*lambdavlast; // @4
-      vf+=(1+2./ndegf)*lambdavpred; // @41
-      lambdavlast=lambdav; }
+#else
+      lambdavpred=5./3*lambdav-5./6*lambdavlast+lambdavllast/6.; // @4
+#endif
+      Vf+=(1+2./En.Nf)*lambdavpred; // @41
+      lambdavllast=lambdavlast; lambdavlast=lambdav; }
 
     loop (i,0,N) {
-      a[i].x-=(1.5*v[i].x-0.5*vlast[i].x)*vf; // @6
-      a[i].y-=(1.5*v[i].y-0.5*vlast[i].y)*vf; // @6
-      vlast[i]=v[i]; } }
+#if TRVP==1
+      a[i].x-=(1.5*v[i].x-0.5*vlast[i].x)*Vf; // @6
+      a[i].y-=(1.5*v[i].y-0.5*vlast[i].y)*Vf; // @6
+#else
+      a[i].x-=(5./3*v[i].x-5./6*vlast[i].x+vllast[i].x/6.)*Vf; // @6
+      a[i].y-=(5./3*v[i].y-5./6*vlast[i].y+vllast[i].y/6.)*Vf; // @6
+#endif
+      vllast[i]=vlast[i]; vlast[i]=v[i]; } }
 
   /* leap-frog integrator and kinetic energy */
-  vv=0;
+  En.Ek.x=En.Ek.y=0;
   maxvv=0;
   momentum.x=momentum.y=0;
 
@@ -847,16 +883,19 @@ void MDstep(void) /************************************************** MDstep */
       MDerror();
       return; }
 
-    xx=Sqr(v[i].x)+Sqr(v[i].y);
-    vv+=xx;  /* leap-frog Ekin (at t-dt/2) */
+    /* leap-frog Ekin components at t-dt/2 */
+    En.Ek.x+=Sqr(v[i].x);
+    En.Ek.y+=Sqr(v[i].y);
 
     /* leap-frog, momentum */
     momentum.x+=v[i].x+=dt*a[i].x;
     momentum.y+=v[i].y+=dt*a[i].y;
 
-    xx=Sqr(v[i].x)+Sqr(v[i].y);
-    vv+=xx;  /* leap-frog Ekin (at t+dt/2) */
-    if (xx>maxvv) maxvv=xx;
+    /* leap-frog Ekin components at t+dt/2 */
+    En.Ek.x+=Sqr(v[i].x);
+    En.Ek.y+=Sqr(v[i].y);
+
+    if (Sqr(v[i].x)+Sqr(v[i].y)>maxvv) maxvv=Sqr(v[i].x)+Sqr(v[i].y);
 
     r[i].x+=dt*v[i].x;
     r[i].y+=dt*v[i].y;
@@ -865,35 +904,41 @@ void MDstep(void) /************************************************** MDstep */
   } /*N*/
 
   // remove total momentum - does not have to be done every step...
-  if ((thermostat>=NVE && thermostat<=NOSE_HOOVER) || thermostat>=BUSSI) {
+  if ((method>=NVE && method<=NOSE_HOOVER) || method>=BUSSI) {
     momentum.x/=N; momentum.y/=N;
     if (bc==PERIODIC) loop (i,0,N) { v[i].x-=momentum.x; v[i].y-=momentum.y; }
     else if (bc==SLIT) loop (i,0,N) { v[i].x-=momentum.x; } }
 
-  if (ndegf<=0) {
+  if (En.Nf<=0) {
     fl_alert("\
 No degree of freedom!\n\
 (Periodic boundary conditions, N=1,\n\
 and momentum conservation.)\n\
-Switching to BOX boundary conditions...");
-    ndegf=2;
-    bc=BOX; }
+Switching to Metropolis Monte Carlo...");
+    En.Nf=2;
+    r[0].x=r[1].x=Lh;
+    method=METROPOLIS; }
 
-  /* vv=4*Ekin(t), leap-frog (VERLET=3 in MACSIMUS) style */
-  Ekin=Econserved=vv/4;
-  Tk=2*Ekin/ndegf; /* kinetic temperature */
+  /*
+     En.Ek.x+En.Ek.y = 4*(total leap-frog kinetic energy)
+     En.Ekin=total leap-frog kinetic energy
+     see VERLET=3 in MACSIMUS
+  */
+  En.Ekin=Econserved=(En.Ek.x+En.Ek.y)/4; // total kinetic energy
+  En.Ek.x*=En.q.x/2; En.Ek.y*=En.q.y/2; // corrected for kinetic pressure tensor
+  Tk=2*En.Ekin/En.Nf; // Tk=2*Ekin/Nf
 
-  double xikin,xipot,lakin; // DEBUG - erase
+  double xikin,xipot,lakin; // mostly for debugging (but does not hurt)
 
   /* MTK and NOSE_HOOVER extended masses: */
-  double M_T=ndegf*T*Sqr(tau);
-  double M_P=2*(ndegf+2)*T*Sqr(tau*qtau);
+  double M_T=En.Nf*T*Sqr(tau);
+  double M_P=2*(En.Nf+2)*T*Sqr(tau*qtau);
 
-  switch (thermostat) {
+  switch (method) {
 
     case MDNPT: {
       /* BERENDSEN barostat */
-      double Ptr=(Pcfg.xx+Pcfg.yy)/2;
+      double Ptr=(En.P.x+En.P.y)/2; // P_cfg calculated between sweeps (NOT every step)
       double rho=L2rho(L);
       /* rough estimate of bulk modulus: */
       double B=(EOS(T,rho+1e-2)-EOS(T,rho-1e-2))/2e-2;
@@ -918,9 +963,9 @@ Switching to BOX boundary conditions...");
       double Rt=rndgauss(); // R(t)
       double Si=0; // S_{Nf-1}
 
-      loop (i,1,ndegf) Si+=sqr(rndgauss()); /* S_{Nf-1} (can be optimized) */
+      loop (i,1,En.Nf) Si+=sqr(rndgauss()); /* S_{Nf-1} (can be optimized) */
 
-      ff=T/(ndegf*Tk); // av(K)/Nf/K(t)
+      ff=T/(En.Nf*Tk); // av(K)/Nf/K(t)
       ff=sqrt(c + (1-c)*(Rt*Rt+Si)*ff + 2*Rt*sqrt(ff*c*(1-c))); // alpha(t)
       loop (i,0,N) { v[i].x*=ff; v[i].y*=ff; } }
       // NB: change of sign not considered because improbablu
@@ -928,44 +973,51 @@ Switching to BOX boundary conditions...");
 
     case MAXWELL:
       /* Maxwell-Boltzmann thermostat: random hits */
-      vv=sqrt(T);
+      ff=sqrt(T);
       static double counter=0;
       counter-=dt;
       if (counter<0) {
-        loop (i,0,N) randomv(i,vv);
+        loop (i,0,N) randomv(i,ff);
         counter+=tau; }
       break;
 
     case ANDERSEN:
       /* Andersen thermostat: random hits */
-      vv=sqrt(T);
-      loop (i,0,N) if (rnd()<dt/tau) randomv(i,vv);
+      ff=sqrt(T);
+      loop (i,0,N) if (rnd()<dt/tau) randomv(i,ff);
       break;
 
     case LANGEVIN:
       /* friction part by the fluctuation-dissipation theorem
-         - the simplest version giving best Epot */
+         - the simplest version giving the best Epot */
       ff=1-0.5*dt/tau;
       loop (i,0,N) { v[i].x*=ff; v[i].y*=ff; }
       break;
 
     case MTK:
-      xikin=M_T*Sqr(xiv/2); // 1/2 of leap-frog kin. energy
-      xiv+=dt/M_T*(2*(Ekin+M_P*Sqr(lambdavpred))-(ndegf+1)*T); // @A1
-      xikin+=M_T*Sqr(xiv/2); // +1/2 of leap-frog kin. energy
-      xipot=(ndegf+1)*T*xi; // xi(t)
-      xi+=dt*xiv; // xi(t+dt) @B1
+      /* Pcfg calculated every step - finished here */
+
+      /* En.Ek.x,En.Ek.y already scaled, but En.q.x=En.q.x=1 anyway */
+      En.P.x=(En.Ek.x+En.P.x)/Sqr(L);
+      En.P.y=(En.Ek.y+En.P.y)/Sqr(L);
+
+      xikin=M_T*Sqr(xiv/2); // 1/2 of leap-frog kin. energy of xi
+      // 2*M_P was wrong (or M_P rescaled), see macsimus/history.txt
+      xiv+=dt/M_T*(2*(En.Ekin+M_P*Sqr(lambdavpred))-(En.Nf+1)*T); // @A1
+      xikin+=M_T*Sqr(xiv/2); // +1/2 of leap-frog kin. energy of xi
+      xipot=(En.Nf+1)*T*xi; // xi=xi(t)
+      xi+=dt*xiv; // xi=xi(t+dt) @B1
       Econserved+=xikin+xipot; // Ekin included, +U later...
-      lakin=M_P*Sqr(lambdav)/2; // NB: 2 degrees of freedom have energy M*v^2
-      lambdav+=dt*((Sqr(L)*((Pcfg.xx+Pcfg.yy)/2-P)+Tk)/M_P-xivpred*lambdavpred);
-      lakin+=M_P*Sqr(lambdav)/2;
+      lakin=M_P*Sqr(lambdav)/2; // 1/2 of leap-frog kin. energy of lambda (*2 deg.f.)
+      lambdav+=dt*((Sqr(L)*((En.P.x+En.P.y)/2-P)+Tk)/M_P-xivpred*lambdavpred); // @C1
+      lakin+=M_P*Sqr(lambdav)/2; // 1/2 of leap-frog kin. energy of lambda (*2 deg.f.)
       Econserved+=lakin+P*Sqr(L);
-      // lambda=log(L);
-      ff=exp(dt*lambdav);
+      ff=exp(dt*lambdav); // equivalent to lambda+=dt*lambdav with L=exp(lambda) @D1
       if (L*ff>1e10) ff=1; // added in 12/2021
       L*=ff; Lh=L/2;
       sliders.rho->value(log(L2rho(L)));
       loop (i,0,N) { r[i].x*=ff; r[i].y*=ff; }
+      // printf("Nf=%d mom=%g %g\n",Nf,momentum.x,momentum.y);
       // printf("%g %g %g %g %g %g %g\n",Econserved+Upot,Ekin,Upot,xikin,xipot,lakin,P*Sqr(L));
       break;
 
@@ -973,7 +1025,7 @@ Switching to BOX boundary conditions...");
       xikin=M_T*Sqr(xiv/2);
       xiv+=dt*(Tk/T-1)/Sqr(tau);
       xikin+=M_T*Sqr(xiv/2);
-      xipot=ndegf*T*xi;
+      xipot=En.Nf*T*xi;
       Econserved+=xikin+xipot; // Ekin included, +U later...
       xi+=dt*xiv; // xi(t+dt)
       //      printf("%g %g %g %g %g\n",Econserved+Upot,Ekin,Upot,xikin,xipot);
@@ -985,18 +1037,18 @@ Switching to BOX boundary conditions...");
   t+=dt;
 
   if (debug) debugtimer("MD");
-} /* MD */
+} // MDstep()
 
 void MCsweep(void) /************************************************ MCsweep */
 {
   vector rt,ri,incirc,drt,dri; /* trial position, r[i], random vector */
-  int i,j,k,l,nimg;
+  int i,j,k,l;
   double deltaU; /* MC: Utrial-U */
   int isdauto=setd->value();
 
   /* max displacement = Lh=L/2 */
   Lh=L/2;
-  nimg=cutoff/L+1; // # of replicas if cutoff>Lh
+  nimg=ss.C2/L+1; // # of replicas if cutoff>Lh
 
   Tk=0; /* Creutz temperature */
 
@@ -1047,7 +1099,7 @@ void MCsweep(void) /************************************************ MCsweep */
           deltaU+=u(Sqr(rt.x-r[j].x)+Sqr(rt.y-r[j].y))-u(Sqr(ri.x-r[j].x)+Sqr(ri.y-r[j].y));
         break;
       case SLIT:
-        if (cutoff<Lh) {
+        if (ss.C2<Lh) {
           loop (j,0,N) if (i!=j)
             deltaU+=u(Sqrni(rt.x-r[j].x)+Sqr(rt.y-r[j].y))-u(Sqrni(ri.x-r[j].x)+Sqr(ri.y-r[j].y)); }
         else
@@ -1058,7 +1110,7 @@ void MCsweep(void) /************************************************ MCsweep */
               deltaU+=u(Sqr(drt.x)+Sqr(rt.y-r[j].y))-u(Sqr(dri.x)+Sqr(ri.y-r[j].y)); }
         break;
       case PERIODIC:
-        if (cutoff<Lh) {
+        if (ss.C2<Lh) {
           loop (j,0,N) if (i!=j)
             deltaU+=u(Sqrni(rt.x-r[j].x)+Sqrni(rt.y-r[j].y))-u(Sqrni(ri.x-r[j].x)+Sqrni(ri.y-r[j].y)); }
         else
@@ -1072,7 +1124,7 @@ void MCsweep(void) /************************************************ MCsweep */
                 deltaU+=u(Sqr(drt.x)+Sqr(drt.y))-u(Sqr(dri.x)+Sqr(dri.y)); } }
     }
 
-    if (thermostat!=CREUTZ) bag=-T*log(rnd());
+    if (method!=CREUTZ) bag=-T*log(rnd());
 
     /* Metropolis/Creutz test */
     if (deltaU<bag) {
@@ -1098,11 +1150,11 @@ void MCsweep(void) /************************************************ MCsweep */
 
   if (isdauto) sliders.d->value(log(d)/DSCALE);
 
-  if (thermostat==MCNPT) {
-    double lf=rndcos()*dV,f=exp(lf),ff=f*f,rr;
-    int isni=cutoff<Lh && cutoff<Lh*f;
+  if (method==MCNPT) {
+    double Lf=rndcos()*dV,f=exp(Lf),ff=f*f,rr;
+    int isni=ss.C2<Lh && ss.C2<Lh*f;
 
-    nimg=cutoff/fmin(L,L*f)+1; // # of replicas if !isni
+    nimg=ss.C2/fmin(L,L*f)+1; // # of replicas if !isni
 
     deltaU=0;
 
@@ -1155,17 +1207,23 @@ void MCsweep(void) /************************************************ MCsweep */
       } /* bc */
     }
 
-    if (rnd()<exp(lf*(2*N+2)-(P*L*L*(ff-1)+deltaU)/T)) {
+    if (rnd()<exp(Lf*(2*N)-(P*Sqr(L)*(ff-1)+deltaU)/T)) {
+      /*
+         This is for NPT ensemble with measure mu=1/V,
+         which is compatible with MTK (with conserved momentum).
+         See https://doi.org/10.1063/5.0193281 for details.
+         [for mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N)]
+      */
       Vaccepted++;
       if (isdauto) {
-        if (dV<0.1) dV*=1+(1-acc)*0.01; }
+        if (dV<MAXDV) dV*=1+(1-acc)*0.01; }
       rr=L2rho(L);
       if (rr<1e-5) {
-        mymessage=2;
+        errmessage=NPTFAILED;
         f=0.8; /* shrink box */
         rr/=f*f;
-        if (debug) writesim("debug.sim");
-        thermostat=METROPOLIS;
+        if (debug) savesim("debug.sim");
+        method=METROPOLIS;
         d=0.3/Lh; }
       if (L*f>1e10) ff=1; // added in 12/2021
       L*=f; Lh=L/2;
@@ -1180,7 +1238,7 @@ void MCsweep(void) /************************************************ MCsweep */
   if (debug) debugtimer("MC");
 
   t+=1;
-} /* MC */
+} // MCsweep()
 
 int shownbrs;
 
@@ -1196,20 +1254,20 @@ void neighbors() /************************************************ neighbors */
     switch (bc) {
       case BOX:
         loop (j,0,N) if (i!=j)
-          if (Sqr(rt.x-r[j].x)+Sqr(rt.y-r[j].y)<range) nbr++;
+          if (Sqr(rt.x-r[j].x)+Sqr(rt.y-r[j].y)<ss.rnbrq) nbr++;
         break;
       case SLIT:
         loop (j,0,N) if (i!=j)
-          if (Sqrni(rt.x-r[j].x)+Sqr(rt.y-r[j].y)<range) nbr++;
+          if (Sqrni(rt.x-r[j].x)+Sqr(rt.y-r[j].y)<ss.rnbrq) nbr++;
         break;
       case PERIODIC:
         loop (j,0,N) if (i!=j)
-          if (Sqrni(rt.x-r[j].x)+Sqrni(rt.y-r[j].y)<range) nbr++;
+          if (Sqrni(rt.x-r[j].x)+Sqrni(rt.y-r[j].y)<ss.rnbrq) nbr++;
         break; }
 
     if (nbr>7) nbr=7;
     molcol[i]=nbrcol[nbr]; }
-}
+} // neighbors()
 
 // return the last single extension .ext (last .)
 // FILE. => zero-length string
@@ -1225,7 +1283,7 @@ const char *getext(const char *fn) /********************************* getext */
     if (*c=='\\') d=NULL; }
 
   return d;
-}
+} // getext()
 
 void loadsim(const char *fn) /************************************** loadsim */
 {
@@ -1235,13 +1293,13 @@ void loadsim(const char *fn) /************************************** loadsim */
 
   if (in) {
     if (fgets(line,256,in)) {
-      if (!strstr(line,STR(SIMVARS))) {
+      if (!strstr(line,SIMVARSQ)) {
         fl_alert("read \"%s\": is not a SIMOLANT file",fn);
         fclose(in);
         return; }
-      sscanf(line,"%d %d %d %lf %lf %lf %lf %lf %d %lf %lf",
-             // see macso SIMVARS for the list of variables
-             &N,(int*)&bc,&walls,&T,&L,&walldens,&dt,&d,(int*)&thermostat,&P,&dV); }
+      sscanf(line,"%d %d %d %lf %lf %lf %lf %lf %d %lf %lf %lf %lf %lf %lf %lf %lf",
+             // see macro SIMVARS for the list of variables
+             &N,(int*)&bc,&walls,&T,&L,&walldens,&dt,&d,(int*)&method,&P,&dV,&tau,&qtau,&gravity,&ss.a,&ss.b,&ss.C2); }
     if (!fgets(line,256,in)) {
       fl_alert("read \"%s\": bad header or bad format",fn);
       fclose(in);
@@ -1251,7 +1309,7 @@ void loadsim(const char *fn) /************************************** loadsim */
 
     loop (i,0,N)
       if (fgets(line,256,in))
-        sscanf(line,"%lf %lf",&r[i].x,&r[i].y);
+        sscanf(line,"%lf %lf %lf %lf",&r[i].x,&r[i].y,&v[i].x,&v[i].y);
       else {
         fl_alert("read \"%s\": too short file or bad format",fn);
         fclose(in);
@@ -1262,4 +1320,53 @@ void loadsim(const char *fn) /************************************** loadsim */
     fl_alert("file \"%s\" unreadable or not found",fn);
     fclose(in);
     return; }
-}
+} // loadsim()
+
+/* mean squared displacement, following the periodic b.c. if applicable */
+void MSD(vector *MSDp) /************************************************ MSD */
+{
+  double D,maxD=0;
+  int i;
+
+  /* enum bctype {BOX,SLIT,PERIODIC}
+     NB: because of compatibility with NPT, 
+     the b.c. calculations are done with the box rescaled to [1,1] */
+
+  if (bc>=SLIT)
+    loop (i,0,N) {
+      D=r[i].x/L-rpbc[i].x;
+      //    fprintf(stderr,"%d dx=%g ",i,D);
+      rpbc[i].x=r[i].x/L;
+      while (D>0.5) {
+        rpbc[i].x-=1; D-=1; }
+      while (D<-0.5) {
+        rpbc[i].x+=1; D+=1; }
+      if (fabs(D)>maxD) maxD=fabs(D);
+      MSDp->x+=Sqr(rpbc[i].x-r0[i].x); }
+  else
+    loop (i,0,N) {
+      rpbc[i].x=r[i].x/L; // in fact, need not be stored
+      MSDp->x+=Sqr(rpbc[i].x-r0[i].x); }
+  MSDp->x*=Sqr(L)/N;
+
+  if (bc==PERIODIC)
+    loop (i,0,N) {
+      D=r[i].y/L-rpbc[i].y;
+      //    fprintf(stderr,"%d dy=%g\n",i,D);
+      rpbc[i].y=r[i].y/L;
+      while (D>0.5) {
+        rpbc[i].y-=1; D-=1; }
+      while (D<-0.5) {
+        rpbc[i].y+=1; D+=1; }
+      if (fabs(D)>maxD) maxD=fabs(D);
+      MSDp->y+=Sqr(rpbc[i].y-r0[i].y); }
+  else
+    loop (i,0,N) {
+      rpbc[i].y=r[i].y/L; // in fact, need not be stored
+      MSDp->y+=Sqr(rpbc[i].y-r0[i].y); }
+  MSDp->y*=Sqr(L)/N;
+
+  if (!MSDskip && maxD>0.45) {
+    errmessage=MSDFAILED;
+    MSDskip=1; }
+} // MSD()

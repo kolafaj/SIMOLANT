@@ -1,4 +1,4 @@
-// the right panel is drawn here
+/* the right panel is drawn here */
 
 /* shorten the info string */
 void shorten(char *s) /********************************************* shorten */
@@ -19,7 +19,7 @@ void shorten(char *s) /********************************************* shorten */
     if ( (c=strstr(s,"e+0")) ) memcpy(c+2,c+3,strlen(c));
     if ( (c=strstr(s,"=-0.")) ) memcpy(c+2,c+3,strlen(c));
     if ( (c=strstr(s,"=0.")) ) memcpy(c+1,c+2,strlen(c)); }
-}
+} // shorten()
 
 /* top: parameters and run info */
 class InfoPanel : public Fl_Box
@@ -45,18 +45,18 @@ private:
     Fl_Box::draw();
 
     fl_font(FL_HELVETICA,TSIZE);
-    if (thermostat==CREUTZ||thermostat==NVE) fl_color(0,127,0);
-    else if (isNPT(thermostat)) fl_color(150,0,160);
+    if (method==CREUTZ||method==NVE) fl_color(0,127,0);
+    else if (isNPT(method)) fl_color(150,0,160);
     else fl_color(0,100,150);
 
     /* basic info */
     if (mauto) {
-      if (thermostat==METROPOLIS)
-        strcpy(info,thinfo[AUTO]);
+      if (method==METROPOLIS)
+        strcpy(info,methodinfo[AUTO]);
       else
-        sprintf(info,"[%s]",thinfo[thermostat]); }
+        sprintf(info,"[%s]",methodinfo[method]); }
     else
-      strcpy(info,thinfo[thermostat]);
+      strcpy(info,methodinfo[method]);
 
     // something wrong here - FL_ALIGN_BOTTOM out of order, always y-centered
     //    fl_draw(info,atx,aty,PANELW-9+3*(info[0]=='['),TSIZE,FL_ALIGN_RIGHT|FL_ALIGN_BOTTOM);
@@ -69,13 +69,14 @@ private:
     if (N!=last.N) lastc.N=10;
     if (lastc.N) fl_color(OI_RED),lastc.N--;
     last.N=N;
-    sprintf(s,"N=%d",N); fl_draw(s,atx,aty);
+    sprintf(s,"N=%d %s",N,FFinfo(0));
+    fl_draw(s,atx,aty);
     fl_color(FL_BLACK);
     fl_font(FL_HELVETICA,16);
 
     aty+=TSIZE+4;
 
-    switch (thermostat) {
+    switch (method) {
       case CREUTZ:
         if (d!=last.d) lastc.d=10;
         if (lastc.d) fl_color(OI_RED),lastc.d--;
@@ -112,7 +113,7 @@ private:
     fl_draw(s,atx,aty); aty+=20;
     fl_color(FL_BLACK);
 
-    if (thermostat==MCNPT || thermostat==MDNPT || thermostat==MTK) {
+    if (method==MCNPT || method==MDNPT || method==MTK) {
       fl_color(OI_RED);
       if (bc==PERIODIC) sprintf(s,"L=%6.3f",L);
       else sprintf(s,"L=%6.3f wall=%.3g",L,walldens/PI); }
@@ -152,23 +153,37 @@ private:
   void draw () {
     /* (blocked) results print/draw */
     if (iblock>=block) {
-      char s[64],ss[64];
+      char s[64],s2[64];
       const char *yaxis;
       int atx=x()+6,aty=y()+18;
       int i;
       double CPval=0;
+      // de-optimized to make the code a bit cleaner
+      double Vav=sum.V/iblock;
+      double rhoav=N/Vav;
+      double Tav=sum.Tk/iblock;
+      vector Pav={sum.P.x/iblock,sum.P.y/iblock};
+      double Pvir=(Pav.x+Pav.y)/2;
+      vector MSDav=zero; // calc. here = last block
+      double Hav=sum.H/iblock;
+      int n=-1;
+
+      if (isMC(method)) {
+        Tav=T;
+        if (method==CREUTZ) Tav=sum.Ekin/iblock; }
 
       Fl_Box::draw();
 
       if (files.record) {
-        // the output order is reversed
+        // the output order to CP is reversed
+        // applies to SIMANME-CP1.csv or SIMANME.txt CP1
+
         // conserved energy
-        if (thermostat==NOSE_HOOVER || thermostat==MTK)
+        if (method==NOSE_HOOVER || method==MTK)
           addM("Econserved",(sum.Econserved+sum.U)/iblock);
 
         // enthalpy
-        if (isNPT(thermostat))
-          addM("H",sum.H/iblock);
+        if (isNPT(method)) addM("H",Hav);
 
         if (bc<PERIODIC) {
           addM("P(top_wall)",sum.fwy/iblock);
@@ -176,13 +191,17 @@ private:
         if (bc==BOX) {
           addM("P(left_wall)",sum.fwx/iblock);
           addM("P(right_wall)",sum.fwxL/iblock); }
-        addM("γ",(sum.Pyy-sum.Pxx)/iblock*L);
-        addM("Pyy",sum.Pyy/iblock);
-        addM("Pxx",sum.Pxx/iblock);
-        addM("Pvir",(sum.Pxx+sum.Pyy)/2/iblock);
-        addM("Z",(sum.Pxx+sum.Pyy)/(2*iblock*T*L2rho(L)));
-        addM("V",sum.V/iblock);
-        addM("Epot",sum.U/iblock); }
+        // ? errmessage=MSDFAILED;
+        if (!MSDskip) MSD(&MSDav);
+        addM("MSDy",MSDav.y); 
+        addM("MSDx",MSDav.x); 
+        addM("γ",(sum.P.y-sum.P.x)/iblock*L);
+        addM("Pyy",Pav.y);
+        addM("Pxx",Pav.x);
+        addM("Pvir",Pvir);
+        addM("Z",(sum.P.x+sum.P.y)/(2*iblock*T*L2rho(L)));
+        addM("V",Vav);
+        n=addM("Epot",sum.U/iblock); }
 
       fl_font(FL_HELVETICA,16);
 
@@ -190,21 +209,21 @@ private:
 
       const char *eq=dtfixed?"=":"⇒";
 
-      if (thermostat==MDNPT || thermostat==MTK) {
-        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f  n=%d",sum.Tk/iblock,eq,dt,N/(sum.V/iblock),head->n);
-        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",sum.Tk/iblock,eq,dt,N/(sum.V/iblock));
-        if (files.record) addM("Tkin",sum.Tk/iblock); }
-      else if (isMD(thermostat)) {
-        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  n=%d",sum.Tk/iblock,eq,dt,head->n);
-        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f",sum.Tk/iblock,eq,dt);
-        if (files.record) addM("Tkin",sum.Tk/iblock); }
+      if (method==MDNPT || method==MTK) {
+        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f  n=%d",Tav,eq,dt,rhoav,n);
+        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",Tav,eq,dt,rhoav);
+        if (files.record) addM("Tkin",Tav); }
+      else if (isMD(method)) {
+        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  n=%d",Tav,eq,dt,n);
+        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
+        if (files.record) addM("Tkin",Tav); }
       // removed because of CSV output: Tbag will be also printed
-      //      else if (thermostat==MCNPT) {
-      //        if (files.record) sprintf(s,"acc.r.=%.4f  ρ=N/⟨V⟩=%.4f  n=%d",sum.Var/iblock,N/(sum.V/iblock),head->n);
-      //        else sprintf(s,"acc.r.=%5.3f  ρ=N/⟨V⟩=%.4f",sum.ar/iblock,N/(sum.V/iblock)); }
+      //      else if (method==MCNPT) {
+      //        if (files.record) sprintf(s,"acc.r.=%.4f  ρ=N/⟨V⟩=%.4f  n=%d",sum.Vaccr/iblock,rhoav,n);
+      //        else sprintf(s,"acc.r.=%5.3f  ρ=N/⟨V⟩=%.4f",sum.accr/iblock,rhoav); }
       else { /* Metropolis, CREUTZ */
-        if (files.record) sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f  n=%d",sum.Ekin/iblock,sum.ar/iblock,head->n);
-        else sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",sum.Ekin/iblock,sum.ar/iblock);
+        if (files.record) sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f  n=%d",sum.Ekin/iblock,sum.accr/iblock,n);
+        else sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",sum.Ekin/iblock,sum.accr/iblock);
         if (files.record) addM("Tbag",sum.Ekin/iblock); }
 
       shorten(s);
@@ -212,20 +231,20 @@ private:
       aty+=20;
 
       // MC: equivalent kinetic energy to print internal energy
-      double eqEkin=T*degrees_of_freedom()*iblock/2.;
+      double eqEkin=T*En.Nf*iblock/2.;
 
       /* convergence profile: interpretation of menu items */
       yaxis=NULL;
       switch (measure) {
 
         case ENERGY:
-          if (isNPT(thermostat)) {
+          if (isNPT(method)) {
             yaxis="enthalpy";
-            CPval=(sum.U+eqEkin)/iblock+sum.V/iblock*P; }
-          else if (thermostat==NVE || thermostat==CREUTZ) {
+            CPval=(sum.U+eqEkin)/iblock+Vav*P; }
+          else if (method==NVE || method==CREUTZ) {
             yaxis="Epot";
             CPval=sum.U/iblock; }
-          else if (isMC(thermostat)) {
+          else if (isMC(method)) {
             yaxis="Epot+f/2*kT";
             CPval=(sum.U+eqEkin)/iblock; }
           else {
@@ -234,27 +253,27 @@ private:
           break;
 
         case TEMPERATURE:
-          if (isMC(thermostat)) {
+          if (isMC(method)) {
             yaxis="Tbag";
             CPval=sum.Ekin/iblock; /* this is the bag */ }
           else {
             yaxis="Tkin";
-            CPval=sum.Ekin/degrees_of_freedom()*2/iblock; }
+            CPval=sum.Ekin/En.Nf*2/iblock; }
           break;
 
         case PRESSURE:
           yaxis="Pvir";
-          CPval=(sum.Pxx+sum.Pyy)/2/iblock;
+          CPval=Pvir;
           break;
 
         case VOLUME:
-          if (isNPT(thermostat)) {
+          if (isNPT(method)) {
             yaxis="volume";
-            CPval=sum.V/iblock; }
+            CPval=Vav; }
           break;
 
         case INTMOTION:
-          switch (thermostat) {
+          switch (method) {
             case MTK:
               yaxis="ext.enthalpy";
               CPval=sum.Econserved/iblock;
@@ -286,22 +305,24 @@ private:
         addM(NULL,0); // end of line - must be the last of all addM's
       }
 
-      double Pav=(sum.Pxx+sum.Pyy)/2/iblock,Pid=T*L2rho(L),Z=Pav/Pid;
-
+      // second line of cyan-blue info
       if (measure==NONE)
-        sprintf(ss,"Pid=%.4g",Pid);
+        sprintf(s2,"P/V not measured");
       else {
-        sprintf(ss,"Pvir=%.4g  Pid=%.4g  Z=%.4g",Pav,Pid,Z);
-        shorten(ss); }
+        double Z;
+        if (isNPT(method)) Z=P/(rhoav*T);
+        else if (isNVE(method)) Z=Pvir/(rhoav*Tav);
+        else Z=Pvir/(rhoav*T);
+        sprintf(s2,"V=%.4g  Pvir=%.4g  Z=%.4g",Vav,Pvir,Z);
+        shorten(s2); }
 
       if (measure==YPROFILE) {
         sprintf(s,"Pxx=%.3g  Pyy=%.3g  γ=%.3f",
-                sum.Pxx/iblock,sum.Pyy/iblock,
-                (sum.Pyy-sum.Pxx)/iblock/2*L);
+                Pav.x,Pav.y,(Pav.y-Pav.x)/2*L); // repeated below - why?
         shorten(s);
         fl_draw(s,atx,aty); }
       else if (measure==QUANTITIES) {
-        fl_draw(ss,atx,aty);
+        fl_draw(s2,atx,aty);
         aty+=20;
         if (bc==BOX) {
           sprintf(s,"P(left wall)=%.4g",sum.fwx/iblock);
@@ -320,12 +341,11 @@ private:
 
         /* WARNING: do not use fix format - overflow if P huge */
         sprintf(s,"Pxx=%6.3g  Pyy=%.3g  γ=%.3g",
-                sum.Pxx/iblock,sum.Pyy/iblock,
-                (sum.Pyy-sum.Pxx)/iblock/2*L);
+                Pav.x,Pav.y,(Pav.y-Pav.x)/2*L); // this is doubled - why?
         shorten(s);
         fl_draw(s,atx,aty); }
       else
-        fl_draw(ss,atx,aty);
+        fl_draw(s2,atx,aty);
 
       aty+=20;
 
@@ -352,9 +372,9 @@ private:
           fl_draw(s,atx+i*dx+7,aty); }
         fl_color(FL_BLACK);
         fl_draw("7+",atx+i*dx+2,aty); }
-      else if (isNPT(thermostat)) {
-        if (thermostat==MCNPT) sprintf(s,"H=%g acc.r.(V)=%.2f Tbag=%.3f",sum.H/iblock,sum.Var/iblock,sum.Ekin/iblock);
-        else sprintf(s,"H=%g",sum.H/iblock);
+      else if (isNPT(method)) {
+        if (method==MCNPT) sprintf(s,"H=%g acc.r.(V)=%.2f",Hav,sum.Vaccr/iblock);
+        else sprintf(s,"H=%g",Hav);
         shorten(s);
         fl_draw(s,atx,aty); }
 
@@ -372,7 +392,7 @@ private:
           case TEMPERATURE:
             if (!yaxis) {
               fl_color(OI_RED);
-              fl_draw(minfo[measure],atx-20,aty+20);
+              fl_draw(measureinfo[measure],atx-20,aty+20);
               fl_draw("is not available",atx-20,aty+40);
               break; }
 
@@ -382,7 +402,6 @@ private:
               double sume=0,sq=0;
               double etot0=0;
               static double lmin,lmax;
-
 
               loop (i,0,HISTMAX) if (etot[i]>-8e99) { etot0=etot[0]; break; }
 
@@ -415,7 +434,7 @@ private:
 
               if (emax<=emin) {
                 fl_color(OI_RED);
-                fl_draw(minfo[measure],atx,aty+40);
+                fl_draw(measureinfo[measure],atx,aty+40);
                 fl_draw("nothing to show – zero range",atx,aty+60);
                 break; }
 
@@ -522,7 +541,7 @@ private:
           loop (i,0,HISTMAX) {
             fl_line(atx+i,aty,atx+i,aty+100);
             if (i%50==0) i+=48; }
-          if (shownbrs) i=(int)(RNBR*50); else i=59; /* rmin */
+          if (shownbrs) i=(int)(ss.rnbr*50+0.5); else i=59; /* rmin */
           fl_line(atx+i,aty,atx+i,aty+100);
 
           fl_color(FL_DARK_YELLOW);
@@ -532,7 +551,7 @@ private:
             if (i%50==0) i+=48; }
 
           if (shownbrs) {
-            i=(int)(RNBR*50);
+            i=(int)(ss.rnbr*50+0.5);
             l=100.5-vv*hist[i]/(2*i+1); }
           else {
             i=59;
@@ -559,7 +578,7 @@ private:
           fl_draw("L",atx+HISTMAX-6,aty+115);
           fl_draw("y",atx+HISTMAX*14/19,aty+125);
 
-          vv=HISTMAX/Sqr(L)/iblock;
+          vv=HISTMAX/Sqr(L)/iblock; // NVT (NVE) assumed
 
           if (files.record) loop (i,0,HISTMAX) rhosum[i]+=hist[i]*vv;
 
@@ -638,7 +657,7 @@ private:
           fl_draw("L/2",atx+HISTMAX-15,aty+115);
           fl_draw("r",atx+HISTMAX*14/19,aty+125);
 
-          vv=Sqr(HISTMAX/Lh)/PI/iblock;
+          vv=Sqr(HISTMAX/Lh)/PI/iblock; // NVT (NVE) assumed
           if (files.record) loop (i,0,HISTMAX) rhosum[i]+=hist[i]*vv/(2*i+1);
 
           fl_color(FL_DARK_GREEN);
@@ -719,8 +738,8 @@ public:
     sliders.T->tooltip("\
 THERMOSTAT TEMPERATURE T\n\
 \n\
-T ∈ [0.1, 5] (logarithmic scale);\n\
-outside this range, use cmd: T=<value>");
+T ∈ [0.1, 5]\n\
+Outside this range, use cmd: T=<value>.");
 
     sliders.tau=new Fl_Fill_Slider(atx, aty, 20, sh,"τ");
     sliders.tau->type(FL_VERT_FILL_SLIDER);
@@ -733,10 +752,10 @@ THERMOSTAT COUPLING TIME τ\n\
 \n\
 τ ∈ [0.1, 10].\n\
 Long τ means that the system is well insulated\n\
-from the thermostat and the system temperature\n\
-approaches the predefined value T slowly,\n\
-and vice versa.\n\
-Outside the slider range, use cmd: tau=<value>");
+from the thermostat. The system temperature\n\
+approaches the predefined value T slowly.\n\
+Short τ means poor insulation and fast change of T.\n\
+Outside the slider range, use cmd: tau=<value>.");
 
     // the same position as tau
     sliders.d=new Fl_Fill_Slider(atx, aty, 20, sh,"d");
@@ -749,7 +768,7 @@ Outside the slider range, use cmd: tau=<value>");
     sliders.d->tooltip("\
 MONTE CARLO TRIAL DISPLACEMENT d\n\
 \n\
-The range depends on N, logarithmic scale.\n\
+The range depends on N.\n\
 See also button [set d] for automatic adjustment.\n\
 Applies also to volume-change in NPT.\n\
 Maximum displacement = L/2.");
@@ -810,7 +829,7 @@ NUMBER OF PARTICLES N\n\n\
 • increase N: particles are inserted at random places\n\
 \n\
 The box is rescaled to keep constant density.\n\
-MD will likely fail and will be temporarily replaced by MC.");
+MD may fail and will be temporarily replaced by MC.");
   }
 };
 
@@ -928,25 +947,27 @@ PARAMETERS\n\
 Enter parameter as command:\n\
   VARIABLE=number\n\
 Both dec. comma (,) and period (.) accepted\n\
-Available VARIABLEs are:\n\
-  N = number of atoms\n\
-  rho = number density\n\
-  L = box size\n\
-  T = temperature (not NVE)\n\
-  tau = thermostat time constant (MD)\n\
+Selected available VARIABLEs are:\n\
+  block = measurement block\n\
   d = trial displacement size (MC), in L/2\n\
-  dV = relative trial volume change (NPT MC)\n\
   dt = h = MD timestep; 0 = based on T,τ\n\
+  dV = relative trial volume change (NPT MC)\n\
   g = gravity\n\
+  L = box size\n\
+  N = number of atoms\n\
+  nbr = distance limit to define neighbor\n\
   P = pressure (NPT only)\n\
   qtau = for MD/NPT: tauP=qtau*tau\n\
+  rho = number density\n\
   stride = every stride-th config. shown\n\
-  block = measurement block\n\
+  T = temperature (not NVE)\n\
+  tau = thermostat time constant (MD)\n\
   wall = wall number density\n\
+More variables (see the manual):\n\
+  a, b, bc, c, circle, measure, method, show\n\
 Example:\n\
   rho=0.01\n\
 Values out of slider range are accepted.");
-
   }
 };
 
@@ -997,6 +1018,8 @@ RESET VIEW\n\
     setd->tooltip("\
 AUTOMATIC DETERMINATION OF MC MOVE SIZE\n\
 \n\
+Should be off for productive runs!\n\
+\n\
 checked (green) = the MC move size d is automatically\n\
    determined to reach acceptance ratio about 0.3\n\
    • microreversibility is slightly violated\n\
@@ -1035,11 +1058,12 @@ Nothing = do not draw (use to speed up)");
     colormode->tooltip("\
 COLOR MODE\n\
 \n\
-Black = all molecules are black\n\
-y-split = top half molecules are colored blue,\n\
+Black = all atoms are black\n\
+One = one atom black, the rest orange\n\
+y-split = top half of the configuration is blue,\n\
     bottom half red, and these colors are kept\n\
 Neighbors = color atoms by the number of neighbors\n\
-    color code shown top right (Okabe+Ito palette)\n\
+    the color code is shown top right (Okabe+Ito palette)\n\
 Random = colorize atoms randomly (and keep)\n\
 Keep = keep the colors (e.g., after Neighbors)");
 
@@ -1073,10 +1097,10 @@ SIMULATION SPEED\n\
     sliders.block->color(SLIDERCOLOR);
     sliders.block->tooltip("MEASUREMENT BLOCKING\n\
 \n\
-block ∈ [1, 100] (log-scale)\n\
+block ∈ [1, 100]\n\
 Measurements (of kinetic temperature Tkin,\n\
 pressure P, RDF, etc.) are averaged in blocks\n\
-and shown after a block has completed.");
+and shown/exported after a block has completed.");
   }
 
   ~ButtonPanel() { }

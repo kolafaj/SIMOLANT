@@ -1,9 +1,10 @@
 // The main simulation loop:
-// Simulate.draw() calculates MC/MD erc ans shows moleciles
+// Simulate.draw() calculates MC/MD and shows molecules
 // Also, the timer control is here
 class Simulate : public Fl_Box {
   void get_data () {
     int i;
+    static double lastT;
 
     // get information from sliders; cf. cb_parms()
     slider2speed(sliders.speed->value());
@@ -12,13 +13,17 @@ class Simulate : public Fl_Box {
     block=pow(10,sliders.block->value())+0.5;
 
     T=exp(sliders.T->value());
+    if (T!=lastT) {
+      calculateB2();
+      lastT=T; }
+
     d=exp(DSCALE*sliders.d->value());
     tau=exp(sliders.tau->value());
 
     if (bc==PERIODIC) gravity=0;
     else gravity=sliders.g->value();
 
-    if (mauto && thermostat<=MCNPT) {
+    if (mauto && method<=MCNPT) {
       if (mcstart<=0) {
         // initial MC finished, switching to MD
 
@@ -31,10 +36,9 @@ class Simulate : public Fl_Box {
       else
         mcstart-=speed.stride; }
 
-    //    insdel((int)(exp(sliders.N->value())+0.5));
     insdel((int)(pow(sliders.N->value(),NPOW)+0.5));
 
-    if (isNPT(thermostat)) {
+    if (isNPT(method)) {
       P=sliders.P->value();
       if (P<-1) P=-1;
       if (P>100) P=100; }
@@ -69,14 +73,14 @@ class Simulate : public Fl_Box {
     /* out-of-box normalization, error for MD+wall */
     loop (i,0,N) {
       if ((r[i].x<=0) || (r[i].x>=L)) {
-        if (isMD(thermostat) && (bc==BOX)) {
+        if (isMD(method) && (bc==BOX)) {
           if (debug) fprintf(stderr,"MDerror: r[%d] = [%g %g]\n",i,r[i].x,r[i].y);
           MDerror();
           r[i].x=rnd()*(L-1)+0.5; }
         while (r[i].x<0) r[i].x+=L;
         while (r[i].x>L) r[i].x-=L; }
       if ((r[i].y<=0) || (r[i].y>=L)) {
-        if (isMD(thermostat) && (bc!=PERIODIC)) {
+        if (isMD(method) && (bc!=PERIODIC)) {
           if (debug) fprintf(stderr,"MDerror: r[%d] = [%g %g]\n",i,r[i].x,r[i].y);
           MDerror();
           r[i].y=rnd()*(L-1)+0.5; }
@@ -85,31 +89,32 @@ class Simulate : public Fl_Box {
   }
 
   void meas() {
-    int i,j;
+    int i,j,k,l;
     unsigned ih;
-    vector ri;
+    vector ri,rt;
 
-    /* calculate virial pressure and RDF
-       NB: in MD, Ekin will be known AFTER a MD step */
-    Upot=0;
-    Pcfg.xx=Pcfg.yy=0; /* P=sum r*f = -virial */
-    Pcfg.fwx=Pcfg.fwxL=Pcfg.fwy=Pcfg.fwyL=0;
+    /* calculate virial pressure and RDF, by stride
+       NB: in MD, Ekin is be known AFTER a MD step has finished
+       NB: MSD calculated at the last block */
+    En.Upot=0;
+    En.P=zero; /* P=sum r*f = -virial */
+    En.fwx=En.fwxL=En.fwy=En.fwyL=0;
     addP=measure==RDF?addPRDF:addPonly;
     loop (i,0,N) {
       ri=r[i];
-      Upot+=gravity*r[i].y; // potential of gravity
+      En.Upot+=gravity*r[i].y; // potential of gravity
       if (bc<PERIODIC) {
         double fwy=fwally(ri.y),fwyL=fwallyL(L-ri.y);
-        Pcfg.yy+=ri.y*fwy+(L-ri.y)*fwyL;
-        Pcfg.fwy+=fwy;
-        Pcfg.fwyL+=fwyL;
-        Upot+=uwally(ri.y)+uwallyL(L-ri.y);
+        En.P.y+=ri.y*fwy+(L-ri.y)*fwyL;
+        En.fwy+=fwy;
+        En.fwyL+=fwyL;
+        En.Upot+=uwally(ri.y)+uwallyL(L-ri.y);
         if (bc==BOX) {
           double fwx=fwallx(ri.x),fwxL=fwallxL(L-ri.x);
-          Pcfg.xx+=ri.x*fwx+(L-ri.x)*fwxL;
-          Pcfg.fwx+=fwx;
-          Pcfg.fwxL+=fwxL;
-          Upot+=uwallx(ri.x)+uwallxL(L-ri.x); } }
+          En.P.x+=ri.x*fwx+(L-ri.x)*fwxL;
+          En.fwx+=fwx;
+          En.fwxL+=fwxL;
+          En.Upot+=uwallx(ri.x)+uwallxL(L-ri.x); } }
       switch (bc) {
         case BOX:
           loop (j,i+1,N)
@@ -117,11 +122,25 @@ class Simulate : public Fl_Box {
           break;
         case SLIT:
           loop (j,i+1,N)
-            addP(ni(ri.x-r[j].x),ri.y-r[j].y);
+            if (ss.C2<Lh)
+              addP(ni(ri.x-r[j].x),ri.y-r[j].y);
+            else
+              loop (j,i+1,N)
+                loopto (k,-nimg,nimg) {
+                  rt.x=ri.x-r[j].x+L*k;
+                  addP(rt.x,ri.y-r[j].y); }
           break;
         case PERIODIC:
-          loop (j,i+1,N)
-            addP(ni(ri.x-r[j].x),ni(ri.y-r[j].y));
+          if (ss.C2<Lh)
+            loop (j,i+1,N)
+              addP(ni(ri.x-r[j].x),ni(ri.y-r[j].y));
+          else
+            loop (j,i+1,N)
+              loopto (k,-nimg,nimg) {
+                rt.x=ri.x-r[j].x+L*k;
+                loopto (l,-nimg,nimg) {
+                  rt.y=ri.y-r[j].y+L*l;
+                  addP(rt.x,rt.y); } }
       } }
 
     if (measure==YPROFILE) {
@@ -148,20 +167,21 @@ class Simulate : public Fl_Box {
         ih=sqrt(rr)*(HISTMAX/Lh);
         if (ih<=HISTMAX) hist[ih]++; } }
 
-    //    if (thermostat==METROPOLIS) Tk=T;
-    //    Pcfg.xx=(N*Tk+Pcfg.xx)/Sqr(L);
-    //    Pcfg.yy=(N*Tk+Pcfg.yy)/Sqr(L);
+    //    if (method==METROPOLIS) Tk=T;
+    //    En.P.x=(N*Tk+En.P.x)/Sqr(L);
+    //    En.P.y=(N*Tk+En.P.y)/Sqr(L);
     // because of MTK, Ekin used instead of N*Tk (no "kinetic pressure correction")
 
-    if (thermostat==CREUTZ) Ekin=0; // this is not fully correct...
-    if (thermostat==METROPOLIS || thermostat==MCNPT) Ekin=degrees_of_freedom()*T/2;
-    Pcfg.xx=(Ekin+Pcfg.xx)/Sqr(L);
-    Pcfg.yy=(Ekin+Pcfg.yy)/Sqr(L);
+    if (method==CREUTZ) En.Ekin=0; // this is not fully correct...
+    if (method==METROPOLIS || method==MCNPT)
+      En.Ek.x=En.Ek.y=En.Ekin=En.Nf*T/2;
+    En.P.x=(En.Ek.x+En.P.x)/Sqr(L);
+    En.P.y=(En.Ek.y+En.P.y)/Sqr(L);
 
-    Pcfg.fwx/=L;
-    Pcfg.fwxL/=L;
-    Pcfg.fwy/=L;
-    Pcfg.fwyL/=L;
+    En.fwx/=L;
+    En.fwxL/=L;
+    En.fwy/=L;
+    En.fwyL/=L;
   }
 
   void draw() { // in addition to drawing, all calculations are called from here
@@ -173,47 +193,67 @@ class Simulate : public Fl_Box {
       loop (i,0,speed.stride) {
 
         if (i==speed.stride-1) {
-          /* measurements BEFORE the last cycle so that Ekin is in sync 
-             with Upot AFTER this loop has finished */
+          /* measurements BEFORE the last cycle so that Ekin is in sync
+             with En.Upot AFTER this loop has finished */
           if (measure) {
             meas();
-            sum.Pxx+=Pcfg.xx;
-            sum.Pyy+=Pcfg.yy;
-            sum.fwx+=Pcfg.fwx;
-            sum.fwxL+=Pcfg.fwxL;
-            sum.fwy+=Pcfg.fwy;
-            sum.fwyL+=Pcfg.fwyL;
+            sum.P.x+=En.P.x;
+            sum.P.y+=En.P.y;
+            sum.fwx+=En.fwx;
+            sum.fwxL+=En.fwxL;
+            sum.fwy+=En.fwy;
+            sum.fwyL+=En.fwyL;
             V=N/L2rho(L);
             sum.V+=V; /* some corrections for not PERIODIC */
-            sum.U+=Upot;
-            if (thermostat<=MCNPT) {
-              /* the current bag + Upot is constant for CREUTZ */
-              Econserved=Upot+bag;
+            sum.U+=En.Upot;
+            if (method<=MCNPT) {
+              /* the current bag + En.Upot is constant for CREUTZ */
+              Econserved=En.Upot+bag;
               sum.Econserved+=Econserved;
               sum.Ekin+=bag; } } }
 
-        if (isMD(thermostat)) {
+        if (isMD(method)) {
           MDstep();
           sum.Tk+=Tk/speed.stride; }
         else {
           accepted=Vaccepted=0;
           MCsweep();
-          sum.ar+=(double)accepted/(N*speed.stride);
-          sum.Var+=(double)Vaccepted/speed.stride; }
+          sum.accr+=(double)accepted/(N*speed.stride);
+          sum.Vaccr+=(double)Vaccepted/speed.stride; }
       } // speed.stride
 
-      /* last cycle finished, both Upot and Ekin are in sync */
-      if (thermostat==NVE) {
-        Econserved=Upot+Ekin;
+      /* last cycle finished, both En.Upot and Ekin are in sync */
+      if (method==NVE) {
+        Econserved=En.Upot+En.Ekin;
         sum.Econserved+=Econserved; }
 
-      if (isNPT(thermostat))
-        sum.H+=Upot+Ekin+P*V;
-      if (isMD(thermostat))
-        sum.Ekin+=Ekin;
-      if (thermostat==NOSE_HOOVER || thermostat==MTK) 
-        sum.Econserved+=Econserved+Upot;
-      iblock++; }
+      if (isNPT(method))
+        En.H=En.Upot+En.Ekin+P*V;
+      else
+        En.H=En.Upot+En.Ekin+(En.P.x+En.P.y)*V/2;
+
+      sum.H+=En.H;
+
+      if (isMD(method))
+        sum.Ekin+=En.Ekin;
+      if (method==NOSE_HOOVER || method==MTK)
+        sum.Econserved+=Econserved+En.Upot;
+
+      iblock++;
+
+      if (files.record) {
+        double Ek=isMC(method)?bag:En.Ekin;
+        if (!measureVar) {
+          sum0.V=V;
+          sum0.Upot=En.Upot;
+          sum0.H=En.H;
+          sum0.Ekin=Ek; }
+
+        sums.V+=V-sum0.V; sumq.V+=Sqr(V-sum0.V);
+        sums.H+=En.H-sum0.H; sumq.H+=Sqr(En.H-sum0.H);
+        sums.Upot+=En.Upot-sum0.Upot; sumq.Upot+=Sqr(En.Upot-sum0.Upot);
+        sums.Ekin+=Ek-sum0.Ekin; sumq.Ekin+=Sqr(Ek-sum0.Ekin);
+        measureVar++; } }
 
     else
       // simulation not running due to button [run] in off state
@@ -223,27 +263,43 @@ class Simulate : public Fl_Box {
 
     if (drawmode->value()<3) {
       // draw background
-      int cmode=colormode->value();
-      if (cmode==0) { molblack(); cmode=4; colormode->value(cmode); }
+      enum colormode_e cmode=(colormode_e) colormode->value();
+      static int boxsize=BOXSIZE; // size of the box in pix (will change)
+
+      if (cmode==0) { molblack(); cmode=CM_KEEP; colormode->value(cmode); }
 
       if (drawmode->value()==0) Fl_Box::draw();
 
-      if (cmode==2) {
-        shownbrs=1;
-        neighbors(); }
-      else {
-        shownbrs=0;
-        if (cmode==1) {
-          y_split(); cmode=4; colormode->value(cmode); }
-        else if (cmode==3) {
-          randomcolors(); cmode=4; colormode->value(cmode); }  }
+      shownbrs=0;
+      switch (cmode) {
+        case CM_NEIGHBORS:
+          shownbrs=1;
+          neighbors();
+          break;
+        case CM_YSPLIT:
+          y_split();
+          cmode=CM_KEEP;
+          colormode->value(cmode);
+          break;
+        case CM_RANDOM:
+          randomcolors();
+          cmode=CM_KEEP;
+          colormode->value(cmode);
+          break;
+        case CM_ONERED:
+          molcol[0]=OI_BLACK;
+          loop (i,1,N) molcol[i]=OI_ORANGE;
+          cmode=CM_KEEP;
+          colormode->value(cmode);
+        default: // CM_KEEP, CM_BLACK
+          break; }
 
       fl_color(FL_WHITE);
       if (drawmode->value()==1)
         loop (i,0,Sqr(boxsize)/64) fl_point(rnd()*boxsize+BORDER,rnd()*boxsize+MENUH+BORDER);
 
       boxsize=w()<h() ? w()-2*BORDER : h()-2*BORDER;
-      scale=boxsize/L;
+      double scale=boxsize/L;
 
       int rad=2;
       double drad=1; // to suppress warning uninitilized
@@ -296,9 +352,10 @@ class Simulate : public Fl_Box {
 
       fl_color(FL_BLACK);
       // color switching is sllooowww, so optimize if all black
-      cmode=0; // the same color
-      loop (i,1,N) if (molcol[i]!=molcol[0]) { cmode=1; break; }
-      if (cmode==0) fl_color(molcol[0]);
+      cmode=CM_BLACK; // the same color
+      // I do not understand the following line :(
+      loop (i,1,N) if (molcol[i]!=molcol[0]) { cmode=CM_YSPLIT; break; }
+      if (cmode==CM_BLACK) fl_color(molcol[0]);
 
       // draw molecules
       if (rad==0)
@@ -390,7 +447,8 @@ class Simulate : public Fl_Box {
     // usleep(speed.extradelay);
 
     fl_line_style(FL_SOLID,0,NULL);
-    if (mymessage) {
+    wasMDerror=0;
+    if (errmessage) {
       int atx=BORDER+6,aty=BORDER+MENUH+35;
 
       fl_color(OI_YELLOW);
@@ -398,9 +456,13 @@ class Simulate : public Fl_Box {
       fl_font(FL_HELVETICA,32);
       fl_color(OI_RED);
       // see Fl::repeat_timeout() below
-      if (mymessage==1) {
+      if (errmessage==MDFAILED) {
+        wasMDerror++;
         fl_draw("Molecular Dynamics failed!",atx,aty); aty+=40;
         fl_draw("Switching temporarily to Monte Carlo…",atx,aty); }
+      else if (errmessage==MSDFAILED) {
+        fl_draw("Cannot follow periodic b.c.!",atx,aty); aty+=40;
+        fl_draw("MSD turned off for now…",atx,aty); }
       else {
         fl_draw("Too low density in NPT ensemble!",atx,aty); aty+=40;
         fl_draw("Switching to Metropolis MC…",atx,aty); }
@@ -413,29 +475,29 @@ class Simulate : public Fl_Box {
     static double tcycle=1/speed.FPS;
     clock_t c0=clock();
 
-    if (isMC(thermostat) && !setd->value())
+    if (isMC(method) && !setd->value())
       sliders.d->show();
     else
       sliders.d->hide();
 
-    if (isMD(thermostat) && thermostat!=NVE)
+    if (isMD(method) && method!=NVE)
       sliders.tau->show();
     else
       sliders.tau->hide();
 
-    if (isMC(thermostat))
+    if (isMC(method))
       setd->show();
     else
       setd->hide();
 
-    if (isNPT(thermostat)) {
+    if (isNPT(method)) {
        sliders.P->show();
        sliders.rho->hide(); }
     else {
        sliders.P->hide();
        sliders.rho->show(); }
 
-    if (thermostat==CREUTZ || thermostat==NVE)
+    if (method==CREUTZ || method==NVE)
       sliders.T->hide();
     else
       sliders.T->show();
@@ -475,8 +537,27 @@ class Simulate : public Fl_Box {
     menu->redraw();
 
     files.record=buttons.record->value();
+
+#if 0 // OLD
+    /* this sets t=0 for the whole 1st block */
+    if (files.record && head==NULL) t=0;
+#endif
+
+    if (files.record && !files.record0) {
+      int i;
+
+      MSDskip=0;
+
+      // initialization of MSD
+      loop (i,0,N) {
+        r0[i].x=rpbc[i].x=r[i].x/L;
+        r0[i].y=rpbc[i].y=r[i].y/L; }
+      t=0; }
+
+    files.record0=files.record;
+
     if (files.record && measure==NONE) measure=QUANTITIES;
-    //    fprintf(stderr,"draw: head=%p %g record=%d\n",head,t,record);
+    //    fprintf(stderr,"draw: head=%p %g record=%d\n",head,t,files.record);
     if (!files.record && head) {
       /* just turned off */
       files.record=showclearM();
@@ -488,11 +569,12 @@ class Simulate : public Fl_Box {
     if (debug) fprintf(stderr,"                                          timeout repeated at %.4f\n",mytime());
 
     /* info message red-on-yellow pops up for 2.5 s */
-    if (mymessage) {
-      mymessage=0;
+    if (errmessage) {
+      errmessage=NOERROR;
       Fl::repeat_timeout(2.5, timer_callback, userdata); }
     else {
       double t=(clock()-c0)/(double)CLOCKS_PER_SEC;
+
       if (t>2*tcycle) tcycle*=2;
       else if (t<0.5*tcycle) tcycle*=0.5;
       else tcycle=sqrt(tcycle*sqrt(tcycle*t));

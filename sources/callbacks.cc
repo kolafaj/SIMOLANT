@@ -4,8 +4,9 @@
 static int fl_ask1(const char *fmt,const char *arg) /*************** fl_ask1 */
 {
   return !fl_choice(fmt,"Yes","No",0,arg);
-}
+} // fl_ask1()
 
+// File menu
 // choose and load a sim-file (a configuration)
 static void cb_load(Fl_Widget* w,void *data) /********************** cb_load */
 {
@@ -24,7 +25,7 @@ static void cb_load(Fl_Widget* w,void *data) /********************** cb_load */
   if (debug) fprintf(stderr,"open file: \"%s\"\n",fn);
 
   if (fn) loadsim(fn);
-}
+} // cb_load()
 
 // choose/type filename and save a sim-file (a configuration)
 static void cb_save(Fl_Widget* w,void *data) /********************** cb_save */
@@ -60,11 +61,11 @@ static void cb_save(Fl_Widget* w,void *data) /********************** cb_save */
         goto ret_cb_save; }
       fclose(out); }
 
-    writesim(fn);
+    savesim(fn);
   ret_cb_save:
     if (fnext) free(fnext);
   }
-}
+} // cb_save()
 
 // type protocol name or choose in *.txt files (extension .txt will be removed)
 static void cb_protocol(Fl_Widget* w,void *data) /************** cb_protocol */
@@ -95,56 +96,93 @@ static void cb_protocol(Fl_Widget* w,void *data) /************** cb_protocol */
     strcpy(files.protocol,fn);
     // const removed because files.protocol is not const
     files.ext=(char*)getext(files.protocol);
-    if (files.ext && !strcmp(files.ext,".txt")) *files.ext=0;
-    else files.ext=files.protocol+sl;
-    files.nmeas=1;
+    if (files.ext && !strcmp(files.ext,".txt"))
+      *files.ext=0;
+    else
+      files.ext=files.protocol+sl;
+    files.nmeas=0;
     fl_alert("\
-The protocol name has been changed\n\
+The protocol name has changed!\n\
+Measurements will be numbered from 1.\n\
 If the following files:\n\
-%s.txt\n\
-%s.csv\n\
-exist, they will be overwitten on recording without\n\
-warning and measurements will be numbered from 1",files.protocol,files.protocol);
+ %s.txt\n\
+ %s.csv\n\
+exist, they will be overwitten on recording.",files.protocol,files.protocol);
   }
-}
+} // cb_protocol()
 
-static void cb_exit(Fl_Widget* w,void *data)
+static void cb_exit(Fl_Widget* w,void *data) /********************** cb_exit */
 {
   //KM Close all windows - better than exit exit()
   while (Fl::first_window())
     Fl::first_window()->hide();
-}
+} // cb_exit()
 
-static void cb_resetview(Fl_Widget* w,void *data)
+FILE *ffout;
+void comma(char *s); // defined in record.cc
+char ffsep; // files.sep for csv, tabulator if txt output
+
+void ffprtcsv(double d) /****************************************** ffprtcsv */
+// similar to prtcsv in record()
 {
-  drawmode->value(0);
-  colormode->value(0);
-  molsize->value(0);
-  justreset=1;
-  itot=HISTMAX+1;
-}
+  char x[24];
 
-static void cb_invertwalls(Fl_Widget* w,void *data)
+  sprintf(x,"%.10g",d);
+  comma(x);
+  fprintf(ffout,"%c%s",ffsep,x);
+} // ffprtcsv()
+
+static void cb_ff(Fl_Widget* w,void *data) /************************** cb_ff */
 {
-  buttons.wallx->value(!buttons.wallx->value());
-  buttons.wallxL->value(!buttons.wallxL->value());
-  buttons.wally->value(!buttons.wally->value());
-  buttons.wallyL->value(!buttons.wallyL->value());
+  // print force field (potential+forces) file
+  int i;
 
-  walls=(buttons.wallx->value())
-    + 2*(buttons.wallxL->value())
-    + 4*(buttons.wally->value())
-    + 8*(buttons.wallyL->value());
+  if (buttons.csv->value()) {
+    strcpy(files.ext,"-ff.csv");
+    ffsep=files.sep; }
+  else {
+    strcpy(files.ext,"-ff.txt");
+    ffsep='\t'; }
 
-  setwalls();
-}
+  ffout=fl_fopen(files.protocol,"wt");
+  fprintf(ffout,"#r%cufull(r)%cu(r)%cffull(r)%cf(r)%c-du(r)/dr_numeric\n",
+          ffsep,ffsep,ffsep,ffsep,ffsep);
+  loop (i,0,(int)(fabs(ss.C2)*100+10.5)) {
+    double r=i/100.;
+    if (u(r*r)<1e5) {
+      char x[16];
+      sprintf(x,"%4.2f",r);
+      comma(x);
+      fprintf(ffout,"%s",x);
+      ffprtcsv(ufull(r*r));
+      ffprtcsv(u(r*r));
+      ffprtcsv(ffull(r*r)*r);
+      ffprtcsv(f(r*r)*r);
+      ffprtcsv((u(Sqr(r-5e-6))-u(Sqr(r+5e-6)))/1e-5);
+      fprintf(ffout,"\n"); } }
+  fprintf(ffout,"#params:%ca%cb%cc\n#",ffsep,ffsep,ffsep);
+  ffprtcsv(sqrt(ss.aq));
+  ffprtcsv(sqrt(ss.bq));
+  ffprtcsv(ss.C2);
+  fprintf(ffout,"\n");
+  fclose(ffout);
+} // cb_ff()
+
+// Force field menu
+
+static void cb_LJ4(Fl_Widget*, void *data) { setss(CUTOFF); }
+static void cb_WCALJ(Fl_Widget*, void *data) { setss(1); }
+static void cb_PD(Fl_Widget*, void *data) { ss.a=0.5; setss(2); }
+static void cb_IG(Fl_Widget*, void *data) { ss.a=0; setss(2); }
+static void cb_APD(Fl_Widget*, void *data) { ss.a=-0.5; setss(2); }
+static void cb_DW(Fl_Widget*, void *data) { ss.a=1.25; ss.b=1.4; setss(-2); }
 
 // Method menu
-static void cb_AUTO(Fl_Widget*, void *data) { thermostat=METROPOLIS; mauto=BUSSI; mcstart=60; }
+static void cb_AUTO(Fl_Widget*, void *data) { MCreset(METROPOLIS); mauto=BUSSI; mcstart=60; }
 
-static void cb_MC_C(Fl_Widget*, void *data) { thermostat=CREUTZ; }
-static void cb_MC(Fl_Widget*, void *data) { thermostat=METROPOLIS; }
-static void cb_MC_NPT(Fl_Widget*, void *data) { thermostat=MCNPT; dV=0.02; }
+static void cb_MC_C(Fl_Widget*, void *data) { MCreset(CREUTZ); }
+static void cb_MC(Fl_Widget*, void *data) { MCreset(METROPOLIS); }
+static void cb_MC_NPT(Fl_Widget*, void *data) { MCreset(MCNPT); dV=0.02; }
 
 static void cb_MD(Fl_Widget*, void *data) { MDreset(NVE); }
 static void cb_MD_B(Fl_Widget*, void *data) { MDreset(BERENDSEN); }
@@ -166,8 +204,9 @@ static void cb_slab(Fl_Widget*, void *data) { initcfg(SLAB); }
 static void cb_nucleation(Fl_Widget*, void *data) { initcfg(NUCLEATION); }
 
 static void cb_liquid(Fl_Widget*, void *data) { initcfg(LIQUID); }
-static void cb_capillary(Fl_Widget*, void *data) { initcfg(CAPILLARY); }
+static void cb_twodrops(Fl_Widget*, void *data) { initcfg(TWODROPS); }
 static void cb_cavity(Fl_Widget*, void *data) { initcfg(CAVITY); }
+static void cb_capillary(Fl_Widget*, void *data) { initcfg(CAPILLARY); }
 
 static void cb_crystal(Fl_Widget*, void *data) { initcfg(CRYSTAL); }
 static void cb_defect(Fl_Widget*, void *data) { initcfg(DEFECT); }
@@ -207,7 +246,7 @@ Missing manual \"simolant.html\".\n\
 Run SIMOLANT from the directory where\n\
 it has been installed, or download it from\n\
 https://github.com/kolafaj/SIMOLANT.");
-}
+} // cb_help()
 
 static void cb_about(Fl_Widget* w,void *data) /******************** cb_about */
 {
@@ -226,15 +265,17 @@ Acknowledgements:\n\
     Ivo Nezbeda (pioneering simulation workshop in ~1985)\n\
     Karel Matas (FLTK advise)\n\
     students");
-}
+} // cb_about()
 
 // Tinker menu
 static void cb_fps15(Fl_Widget*, void *data) { speed.FPS=15; }
 static void cb_fps30(Fl_Widget*, void *data) { speed.FPS=30; }
 static void cb_fps60(Fl_Widget*, void *data) { speed.FPS=60; }
+static void cb_fps120(Fl_Widget*, void *data) { speed.FPS=120; }
 static void cb_timeout99(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.99; }
-static void cb_timeout50(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.50; }
-static void cb_timeout25(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.25; }
+static void cb_timeout50(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.5; }
+static void cb_timeout20(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.2; }
+static void cb_timeout7(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.07; }
 
 // parameter value normalized to range [FROM,TO]
 #define BRACKETVAL(VAL,FROM,TO) do { \
@@ -263,17 +304,18 @@ static void read_parm(char *cmd) /******************************** read_parm */
 
     if (!strcmp(cmd,"t")) {
       BRACKETVAL(val,1e-9,99);
-      sliders.T->value(log(val)); }
+      sliders.T->value(log(val));
+      calculateB2(); }
     else if (!strcmp(cmd,"tau") || !strcmp(cmd,"τ")) {
       BRACKETVAL(val,0.01,1e9);
       sliders.tau->value(log(val)); }
     else if (!strcmp(cmd,"d")) {
       /* in the units of L */
-      BRACKETVAL(val,1e-3,1);
+      BRACKETVAL(val,1e-4,1);
       sliders.d->value(log(val)/DSCALE); }
     else if (!strcmp(cmd,"dv")) {
       /* MC volume change */
-      BRACKETVAL(val,1e-3,0.1);
+      BRACKETVAL(val,1e-4,MAXDV);
       dV=val; }
     else if (!strcmp(cmd,"g")) {
       BRACKETVAL(val,-9,9);
@@ -307,28 +349,46 @@ static void read_parm(char *cmd) /******************************** read_parm */
     else if (!strcmp(cmd,"wall")) {
       BRACKETVAL(val,0.1,9);
       walldens=PI*val; }
-    else if (!strcmp(cmd,"cutoff") || !strcmp(cmd,"cut")) {
-      BRACKETVAL(val,2.4,1000);
-      cutoff=val;
-      setss(); }
+    else if (!strcmp(cmd,"c")) {
+      //      BRACKETVAL(val,2.4,1000);
+      // CHANGE BRACKETING?
+      setss(val); }
+    else if (!strcmp(cmd,"a")) {
+      //      BRACKETVAL(val,?,?)
+      ss.a=val; 
+      setss(ss.C2); }
+    else if (!strcmp(cmd,"b")) {
+      //      BRACKETVAL(val,?,?)
+      ss.b=val; 
+      setss(ss.C2); }
+    else if (!strcmp(cmd,"nbr")) {
+      if (val<=0) val=RNBR; // the default
+      BRACKETVAL(val,0,4);
+      ss.rnbr=val;
+      ss.rnbrq=Sqr(val); }
     else if (!strcmp(cmd,"l")) {
       double L0=L;
       L=val; val=L2rho(L);
       BRACKETVAL(val,0.0001,2); // this is rho
       L=L0;
       sliders.rho->value(log(val)); }
-    else if (!strcmp(cmd,"th")) {
-      thermostat=(thermostat_t)ival;
+    else if (!strcmp(cmd,"circle"))
+      circlemethod=ival;
+    else if (!strcmp(cmd,"method")) {
+      method=(method_e)ival;
       mauto=AUTO;
-      if (thermostat<=AUTO || thermostat>=NTH) cb_AUTO(NULL,NULL); }
+      if (method<=AUTO || method>=NTH) cb_AUTO(NULL,NULL); }
     else if (!strcmp(cmd,"bc")) {
       bc=(bctype)ival;
       if (bc<BOX || bc>PERIODIC) bc=BOX; }
+    else if (!strcmp(cmd,"measure") || !strcmp(cmd,"show")) {
+      measure=(measure_t)ival;
+      if (measure<NONE || measure>=NMEASURE) measure=NONE; }
     else
       buttons.parms->value("ERROR variable"); }
   else
     buttons.parms->value("ERROR number");
-}
+} // read_parm()
 
 /* read in parameters from input area [cmd:] */
 static void cb_parms(Fl_Widget* w,void *data) /******************** cb_parms */
@@ -348,4 +408,28 @@ static void cb_parms(Fl_Widget* w,void *data) /******************** cb_parms */
   read_parm(cmd);
 
   buttons.parms->show();
-}
+} // cb_parms()
+
+static void cb_resetview(Fl_Widget* w,void *data) /************ cb_resetview */
+{
+  drawmode->value(0);
+  colormode->value(CM_BLACK);
+  molsize->value(0);
+  justreset=1;
+  itot=HISTMAX+1;
+} // cb_resetview()
+
+static void cb_invertwalls(Fl_Widget* w,void *data) /******** cb_invertwalls */
+{
+  buttons.wallx->value(!buttons.wallx->value());
+  buttons.wallxL->value(!buttons.wallxL->value());
+  buttons.wally->value(!buttons.wally->value());
+  buttons.wallyL->value(!buttons.wallyL->value());
+
+  walls=(buttons.wallx->value())
+    + 2*(buttons.wallxL->value())
+    + 4*(buttons.wally->value())
+    + 8*(buttons.wallyL->value());
+
+  setwalls();
+} // cb_invertwalls

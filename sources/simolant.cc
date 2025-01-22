@@ -2,7 +2,7 @@
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
 // g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "09/2024"
+#define VERSION "01/2025"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>
@@ -26,10 +26,9 @@
 
 #include "include.h"
 
-#define PI M_PI // needed in rndetc.c
+#define PI M_PI // needed in rndetc.c (#included from rndgeni.c)
 #include "rndgeni.c"
 
-// #define PANELW 329 // OLD right panel width (needs tinkering if changed)
 #define PANELW 392       // right panel width (needs tinkering if changed)
 #define MENUH 24         // top menu height (reasonable range 20..30)
 #define INFOPANELH 92    // height of the top panel with N=, ensemble, parameters
@@ -45,7 +44,7 @@
 #define INITGEOMETRY_Y (INFOPANELH+RESULTPANELH+BUTTONPANELH+MENUH)
 #define INITGEOMETRY_X (INFOPANELH+RESULTPANELH+BUTTONPANELH+PANELW)
 
-// Okabe and Ito colo-blind-safe palette
+// Okabe and Ito color-blind-safe palette
 // https://www.nceas.ucsb.edu/sites/default/files/2022-06/Colorblind%20Safe%20Color%20Schemes.pdf
 
 #define OI_BLACK  0x00000000
@@ -58,18 +57,44 @@
 #define OI_LILAC  0xCC79A700
 #define LIGHTYELLOW 0xFFF08000 // for graphs vs. OI_GREEN
 
+// force field stuff moved here because of ss.rnbr used in panel
 #define RNBR 1.55 // range for neighbors
-// not needed for linux - check speed.extradelay with Windows!
+#define CUTOFF 4 // default cutoff (-> ss.C2)
+
+/*
+  parameter ss.C1 (accessible as cutoff or cut from the data)
+  <-1      = double well (Penrose)
+  [1,2)    = 2DWCALJ: 4/r^8-4/r^4+1 for r<2^1/4, otherwise 0
+  2        = penetrable disks: a*(r^2-4)^2
+  >=MAXCUT = 2DLJ: 4/r^8-4/r^4, smoothly truncated to ss.C1
+*/
+
+struct ss_s {
+  double C1;        // smooth cutoff from C1 to C2
+  double C2=CUTOFF; // cutoff, see above, from cmd: and -P
+  double C1q;       // C1^2
+  double C2q;       // C2^2
+  double A,A4;      // constants in the smoothed part
+  double a=1.25;    // a from cmd: and -P
+  double aq;        // a^2
+  double b=1.4;     // b from cmd: and -P
+  double bq;        // b^2
+  double rnbr=RNBR; // thereshold to count neighbors
+  double rnbrq=Sqr(RNBR);
+  double P[5];      // DW forces expansion, see Penrose.mw - two minima
+  double B2;        // 2nd virial coefficient for given thermostat parameter T
+} ss;
 
 // some global variables collected here
 struct files_s {
   int record=0;         // state of recording
+  int record0=0;        // last state of recording
   int nmeas=0;          // counter of blocked measurements
   char sep=',';         // CSV field separator (global)
   FILE *csv=NULL;       // output CSV file with blocked neasurements
   char protocol[256]="simolant"; // .txt or .csv will be added, cf. cb_protocol()
   char *ext=protocol+8; // . of the extension
-  char info[2048]="";   // blocked measurement to record
+  char info[1024]="";   // blocked measurement to record
 } files;
 
 // KM menu-redraw must be explicitly requested, so Simulate must know it
@@ -87,6 +112,8 @@ Fl_Help_Dialog *help;
 Fl_Choice *molsize,*drawmode,*colormode,*incl;
 Fl_Button *resetview,*invertwalls,*setd;
 Fl_Light_Button *run; // run/hold
+
+void calculateB2(void); // needed in setss()
 
 #include "speed.cc"
 #include "calculate.cc"
@@ -107,6 +134,7 @@ Fl_Menu_Item drawmodeitems[]={
   { 0 } };
 Fl_Menu_Item colormodeitems[]={
   { "&Black" },
+  { "&One" },
   { "&y-split" },
   { "&Neighbors" },
   { "&Random" },
@@ -120,6 +148,7 @@ Fl_Menu_Item inclitems[]={
   { "&Both" },
   { 0 } };
 
+
 #include "panel.cc"
 Fl_Menu_Bar *menu;
 #include "simulate.cc"
@@ -129,7 +158,16 @@ Fl_Menu_Item menuitems[] = {
   { "&Protocol name...", 0, cb_protocol, 0, FL_MENU_DIVIDER },
   { "&Load configuration...", 0, cb_load },
   { "&Save configuration as...", 0, cb_save, 0, FL_MENU_DIVIDER },
+  { "&Export force field", 0, cb_ff, 0, FL_MENU_DIVIDER },
   { "&Quit", 0, cb_exit },
+  { 0 },
+  { "F&orce field  ", FL_ALT|'f', 0, 0, FL_SUBMENU },
+  { "&Lennard-Jones c=4 (recommended)", 0, cb_LJ4},
+  { "&Repulsive (WCALJ, c=1.1892)", 0, cb_WCALJ},
+  { "&Penetrable disks (a=0.5,c=2)", 0, cb_PD},
+  { "&Ideal gas (a=0,c=2)", 0, cb_IG},
+  { "&Attractive penetrable disks (a=-0.5,c=2)", 0, cb_APD},
+  { "&Double well (a=1.25,b=1.4,c=-2)", 0, cb_DW},
   { 0 },
   { "&Prepare system  ", FL_ALT|'p', 0, 0, FL_SUBMENU },
   { "&Gas in box", 0, cb_gas },
@@ -139,8 +177,9 @@ Fl_Menu_Item menuitems[] = {
   { "Horizontal &Slab", 0, cb_slab },
   { "&Nucleation", 0, cb_nucleation, 0, FL_MENU_DIVIDER },
   { "&Liquid droplet", 0, cb_liquid },
-  { "&Capillary", 0, cb_capillary },
-  { "&Bubble (cavity)", 0, cb_cavity, 0, FL_MENU_DIVIDER },
+  { "&Two droplets", 0, cb_twodrops },
+  { "&Bubble (cavity)", 0, cb_cavity },
+  { "&Capillary", 0, cb_capillary, 0, FL_MENU_DIVIDER  },
   { "&Hexagonal crystal", 0, cb_crystal },
   { "+ &Edge defect", 0, cb_defect },
   { "+ &Vacancy", 0, cb_vacancy },
@@ -158,15 +197,15 @@ Fl_Menu_Item menuitems[] = {
   { "Molecular Dynamics  NVT (Ma&xwell-Boltzmann)", 0, cb_MD_M },
   { "Molecular Dynamics  NVT (&Langevin)", 0, cb_MD_L },
   { "Molecular Dynamics  NVT (B&ussi CSVR)", 0, cb_MD_BUSSI },
-  { "Molecular Dynamics   NPT (B&erendsen)", 0, cb_MD_MDNPT },
-  { "Molecular Dynamics   NPT (Ma&rtyna et al.)", 0, cb_MD_MTK },
+  { "Molecular Dynamics   NPT (Be&rendsen)", 0, cb_MD_MDNPT },
+  { "Molecular Dynamics   NPT (Mar&tyna et al.)", 0, cb_MD_MTK },
   { 0 },
   { "&Boundary conditions  ", FL_ALT|'b', 0, 0, FL_SUBMENU },
   { "&Box (soft walls)", 0, cb_box },
   { "&Slit (x-periodic, y-walls)", 0, cb_slit },
   { "&Periodic", 0, cb_periodic },
   { 0 },
-  { "&Show  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
+  { "&Show and measure  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
   { "&Minimum", 0, cb_nomeas },
   { "&Quantities", 0, cb_quantities, 0, FL_MENU_DIVIDER },
   { "&Energy/enthalpy convergence profile", 0, cb_energy },
@@ -182,10 +221,12 @@ Fl_Menu_Item menuitems[] = {
   { "&Tinker  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
   { "FPS=&15", 0, cb_fps15 },
   { "FPS=&30", 0, cb_fps30 },
-  { "FPS=&60", 0, cb_fps60 , 0, FL_MENU_DIVIDER },
+  { "FPS=&60", 0, cb_fps60 },
+  { "FPS=12&0", 0, cb_fps120 , 0, FL_MENU_DIVIDER },
   { "Timeout &99% of simulation (use if shaky)", 0, cb_timeout99 },
   { "Timeout &50% of simulation", 0, cb_timeout50 },
-  { "Timeout &25% of simulation (faster)", 0, cb_timeout25 },
+  { "Timeout &20% of simulation (faster)", 0, cb_timeout20 },
+  { "Timeout &7% of simulation (fastest, may stuck)", 0, cb_timeout7 },
   { 0 },
   { "&Help", FL_ALT|'h', 0, 0, FL_SUBMENU  },
   { "&Manual", 0, cb_help, 0, FL_MENU_DIVIDER },
@@ -212,6 +253,11 @@ int main(int narg,char **arg) /**************************************** main */
         case 'F': speed.FPS=atof(arg[iarg]+2); break;
         case 'I': fn=arg[iarg]+2; init=(enum cfg_t)atoi(arg[iarg]+2); break;
         case 'N': N=atoi(arg[iarg]+2); break; // legacy
+        case 'O':
+          if (strlen(files.protocol)>250) exit(4);
+          strcpy(files.protocol,arg[iarg]+2);
+          files.ext=files.protocol+strlen(files.protocol);
+          break;
         case 'P': optionP=arg[iarg]+2; break;
         case 'S': speed.init=atof(arg[iarg]+2); break;
         case 'T': speed.MINTIMEOUT=atof(arg[iarg]+2); break;
@@ -270,7 +316,7 @@ EXAMPLE:\n\
     The draw() method (actually accessed as redraw() which "schedules
     redrawing") contains also drawing all panels and graphs and MC/MD
     calculations.  At the same time, it initiates the timer_callback() loop.
-    with redrawing everything and refreshing the timer.  
+    with redrawing everything and refreshing the timer.
     The simulation box is resizable, the right panel is resized accordingly,
     cf. the note in panel.cc: Panel()
   */
@@ -290,7 +336,7 @@ EXAMPLE:\n\
   loop (iarg,1,newiarg) if (!memcmp(newarg[iarg],"-h",2)) {
     fprintf(stderr,"Use option -H to get simolant options\n");
     exit(0); }
-  
+
   ext=getext(fn);
   if (ext && !strcmp(ext,".sim")) loadsim(fn); // name.sim => load it
   else initcfg(init); // no .ext=.sim => is a number
@@ -307,14 +353,7 @@ EXAMPLE:\n\
 
     free(optionP); }
 
-  setss();
-  if (debug) {
-    int i;
-    printf("# r   u(r)   f(r)   -du(r)/dr_numeric\n");
-    loop (i,150,650) {
-      double r=i/200.;
-      printf("%5.3f %.9g %.9g %.9g\n",
-             r,u(r*r),f(r*r)*r,(u(Sqr(r-5e-6))-u(Sqr(r+5e-6)))/1e-5); } }
+  setss(CUTOFF); // not clear why it must be here
 
   return Fl::run();
 }

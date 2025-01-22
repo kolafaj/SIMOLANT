@@ -51,12 +51,30 @@ _In Windows, do not run directly from "folder simolant-win32"!_
 * simolant-amd64.zip - for linux (64 bit)
 * simolant-win32.zip - for Microsoft Windows (32 bit)
 
-## New in this version
+## New since the previously posted version
 
-* help window and panel enlarged
-* Tinker menu added
-* timeouts based on the measured simulation times
-* new button [invert] walls
-* CSV output added
-* Okabe and Ito colorblind-safe palette
+* MSD also for not periodic b.c.
+* After change of N while MC, the number of degrees of freedom was not updated leading to wrong results
+* More potentials added: WCA, double well, penetrable disks/spheres
+* Also velocities saved to .sim
+* MSD added + bugs fixed
+* Two droplets added
+* Cutoff smoothing bug fixed
+* Number of degrees of freedom for MTK was fixed; now lim<sub>ρ→0</sub>Z=1 also for small N
+* Nonstochastic NVT MD kinetic pressure corection added so that now lim<sub>ρ→0</sub>Z=1 also for small N
+* Outputs cleaned; particularly for Z</li>
+* Missing header after change of protocol name fixed
+* g↔P swapped (was wrong in .txt protocol)
+* NPT volume measure μ=const replaced by μ=1/V in MC NPT, to be compatible with MTK
 
+## To do list
+
+* Warn on parameter check during recording
+* Improve pop up warnings
+* Linked-cell list to speed up
+* Include lattice models?
+
+## Bugs/features
+
+* Gravity not part of the virial (should it be?)
+* Recording: The measurement number is advanced even if save is cancelled
