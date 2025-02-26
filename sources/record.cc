@@ -190,7 +190,7 @@ int showclearM() /*********************************************** showclearM */
     char serr[32];
 
     if (!memcmp("MSD",a->name,3))
-      sprintf(serr," at t=%g (last value)",a->sumq);
+      sprintf(serr," at %g (last time)",a->sumq); // do not change - parsed
     else if (a->n>1 && err>0) {
       err=sqrt(err);
       if (fabs(err)>=fabs(av))
@@ -279,7 +279,7 @@ Parameters:\n\
         if (files.csv) {
           if (files.nmeas==1)
             // cf. info2csv below
-            fprintf(files.csv,"#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err\n");
+            fprintf(files.csv,"#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err,MSDx,at_t,MSDy,at_t,momentum\n");
           fprintf(files.csv,"%d",files.nmeas);
           prtcsv(N);
           prtcsv(bc);
@@ -378,6 +378,7 @@ Parameters:\n\
           info2csv("Econserved");
           info2csv("MSDx");
           info2csv("MSDy");
+          info2csv("momentum");
           fprintf(files.csv,"\n"); }
 
         if (measureVar>1) {

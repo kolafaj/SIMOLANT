@@ -2,11 +2,11 @@
 if [ $# -lt 1 ]; then
   cat <<EOF
 Compile simolant. Call by:
-  make.sh {s|d|D}
+  make.sh {s,d,g,D}
 where
-  g = -g (debug)
   s = static linking
   d = dynamic linking
+  g = dynamic linking with debug flag (-g)
   D = dynamic linking, move to ~/bin/ on success
 EOF
   exit 1
@@ -19,5 +19,5 @@ case $1 in
   d ) g++ -I/usr/include/freetype2 -O2 -D_THREAD_SAFE -D_REENTRANT -Wall -o simolant simolant.cc -lfltk_images -lfltk ;;
   D ) g++ -I/usr/include/freetype2 -O2 -D_THREAD_SAFE -D_REENTRANT -Wall -o simolant simolant.cc -lfltk_images -lfltk && mv simolant ~/bin/ ;;
   s ) fltk-config --use-images --compile simolant.cc ;;
-  * ) echo "wrong argument, use one of: d D s"
+  * ) echo "wrong argument, use:"; echo "  make.sh {s,d,g,D}"
 esac

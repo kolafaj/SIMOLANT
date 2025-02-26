@@ -22,9 +22,10 @@ void shorten(char *s) /********************************************* shorten */
 } // shorten()
 
 /* top: parameters and run info */
-class InfoPanel : public Fl_Box
+class InfoPanel : public Fl_Box ///////////////////////////////////// InfoPanel
 {
-private:
+  //private:
+protected:
   void draw () {
     char s[256]; /* not to crash for huge number and fixed format */
     static char info[32];
@@ -147,7 +148,7 @@ public:
 };
 
 /* results: numbers and graph */
-class ResultPanel : public Fl_Box
+class ResultPanel : public Fl_Box ///////////////////////////////// ResultPanel
 {
 private:
   void draw () {
@@ -160,6 +161,7 @@ private:
       double CPval=0;
       // de-optimized to make the code a bit cleaner
       double Vav=sum.V/iblock;
+      double momentumav=sum.momentum/iblock;
       double rhoav=N/Vav;
       double Tav=sum.Tk/iblock;
       vector Pav={sum.P.x/iblock,sum.P.y/iblock};
@@ -175,7 +177,7 @@ private:
       Fl_Box::draw();
 
       if (files.record) {
-        // the output order to CP is reversed
+        // the output order in CP is reversed
         // applies to SIMANME-CP1.csv or SIMANME.txt CP1
 
         // conserved energy
@@ -193,8 +195,9 @@ private:
           addM("P(right_wall)",sum.fwxL/iblock); }
         // ? errmessage=MSDFAILED;
         if (!MSDskip) MSD(&MSDav);
-        addM("MSDy",MSDav.y); 
-        addM("MSDx",MSDav.x); 
+        if (method==VICSEK) addM("momentum",momentumav);
+        addM("MSDy",MSDav.y);
+        addM("MSDx",MSDav.x);
         addM("γ",(sum.P.y-sum.P.x)/iblock*L);
         addM("Pyy",Pav.y);
         addM("Pxx",Pav.x);
@@ -270,6 +273,12 @@ private:
           if (isNPT(method)) {
             yaxis="volume";
             CPval=Vav; }
+          break;
+
+        case MOMENTUM:
+          if (method==VICSEK) {
+            yaxis="momentum";
+            CPval=momentumav; }
           break;
 
         case INTMOTION:
@@ -350,10 +359,10 @@ private:
       aty+=20;
 
       if (measure!=NONE) {
-        sprintf(s,"Etot=%g  Epot=%g",(sum.U+sum.Ekin)/iblock,sum.U/iblock);
+        if (fabs(momentumav)>1e-9) sprintf(s,"Etot=%g  Epot=%g  p=%.4f",(sum.U+sum.Ekin)/iblock,sum.U/iblock,momentumav);
+        else sprintf(s,"Etot=%g  Epot=%g",(sum.U+sum.Ekin)/iblock,sum.U/iblock);
         fl_draw(s,atx,aty);
-        aty+=20;
-      }
+        aty+=20; }
 
       if (shownbrs) {
         fl_color(FL_BLACK);
@@ -385,104 +394,105 @@ private:
 
       if (h()>180) switch (measure) {
 
-          case PRESSURE:
-          case INTMOTION:
-          case VOLUME:
-          case ENERGY:
-          case TEMPERATURE:
-            if (!yaxis) {
+        case ENERGY:
+        case TEMPERATURE:
+        case PRESSURE:
+        case VOLUME:
+        case MOMENTUM:
+        case INTMOTION:
+          if (!yaxis) {
+            fl_color(OI_RED);
+            fl_draw(measureinfo[measure],atx-20,aty+20);
+            fl_draw("is not available",atx-20,aty+40);
+            break; }
+
+          if (itot<HISTMAX) {
+            int i,netot=0;
+            double emin=1e99,emax=-1e99;
+            double sume=0,sq=0;
+            double etot0=0;
+            static double lmin,lmax;
+
+            loop (i,0,HISTMAX) if (etot[i]>-8e99) { etot0=etot[0]; break; }
+
+            loop (i,0,HISTMAX) if (etot[i]>-8e99) {
+              netot++;
+              sume+=etot[i]-etot0;
+              sq+=Sqr(etot[i]-etot0);
+              if (etot[i]<emin) emin=etot[i];
+              if (etot[i]>emax) emax=etot[i]; }
+
+            if (justreset) lmin=emin,lmax=emax,justreset=1;
+
+            if (lmin<emin) lmin=0.9*lmin+0.1*emin; else lmin=emin;
+            if (lmax>emax) lmax=0.9*lmax+0.1*emax; else lmax=emax;
+            emin=lmin;
+            emax=lmax;
+
+            fl_color(FL_BLACK);
+            sprintf(s,"%.6g",emax);
+            fl_draw(s,atx-30,aty-5);
+            sprintf(s,"%.6g",emin);
+            fl_draw(s,atx-30,aty+120);
+            if (emax-emin<1e-9) sprintf(s,"max-min=%.2g",emax-emin);
+            else if (emax-emin<1e-2) sprintf(s,"max-min=%.3g",emax-emin);
+            else sprintf(s,"max-min=%.4g",emax-emin);
+            fl_draw(s,atx+100,aty+120);
+
+            // quantity to show: should correspond to CPval above
+            fl_draw(90,yaxis,atx-18,aty+53+fl_width(yaxis)/2);
+
+            if (emax<=emin) {
               fl_color(OI_RED);
-              fl_draw(measureinfo[measure],atx-20,aty+20);
-              fl_draw("is not available",atx-20,aty+40);
+              fl_draw(measureinfo[measure],atx,aty+40);
+              fl_draw("nothing to show – zero range",atx,aty+60);
               break; }
 
-            if (itot<HISTMAX) {
-              int i,netot=0;
-              double emin=1e99,emax=-1e99;
-              double sume=0,sq=0;
-              double etot0=0;
-              static double lmin,lmax;
+            sq=sqrt((sq-Sqr(sume)/netot)/(netot-1));
+            sprintf(s,"stdev=%.3g",sq);
+            fl_draw(s,atx+100,aty-5);
 
-              loop (i,0,HISTMAX) if (etot[i]>-8e99) { etot0=etot[0]; break; }
+            //          fl_color(FL_DARK_GREEN); =(0,145,0)
+            fl_color(fl_rgb_color(0,120,0));
+            fl_line_style(FL_SOLID,0,NULL);
+            fl_rectf(atx,aty,HISTMAX,102);
 
-              loop (i,0,HISTMAX) if (etot[i]>-8e99) {
-                netot++;
-                sume+=etot[i]-etot0;
-                sq+=Sqr(etot[i]-etot0);
-                if (etot[i]<emin) emin=etot[i];
-                if (etot[i]>emax) emax=etot[i]; }
+            /* draw grid */
+            double demax=102/(emax-emin);
+            double ex=log(emax-emin)/log(2.);
+            double dl=floor(ex);
+            double fr=ex-floor(ex);
+            dl=pow(2.,dl-1.5); // -> number of shaded lines
+            fl_color(fl_rgb_color(0,190,0));
 
-              if (justreset) lmin=emin,lmax=emax,justreset=1;
+            ex=floor(emin/dl)*dl;
+            dl/=2;
+            while (ex<=emax) {
+              int y=102.5-(ex-emin)*demax;
+              if (ex>=emin) {
+                fl_color(fl_rgb_color(0,220,0));
+                fl_line(atx,aty+y,atx+HISTMAX,aty+y); }
+              ex+=dl;
+              if (ex>emax) break;
+              if (ex>=emin) {
+                y=102.5-(ex-emin)*demax;
+                fl_color(fl_rgb_color(0,(int)(220-100*fr),0));
+                fl_line(atx,aty+y,atx+HISTMAX,aty+y); }
+              ex+=dl; }
 
-              if (lmin<emin) lmin=0.9*lmin+0.1*emin; else lmin=emin;
-              if (lmax>emax) lmax=0.9*lmax+0.1*emax; else lmax=emax;
-              emin=lmin;
-              emax=lmax;
+            /* draw convergence profile */
+            // fl_color(OI_YELLOW); // too dark
+            fl_color(LIGHTYELLOW);
 
-              fl_color(FL_BLACK);
-              sprintf(s,"%.6g",emax);
-              fl_draw(s,atx-30,aty-5);
-              sprintf(s,"%.6g",emin);
-              fl_draw(s,atx-30,aty+120);
-              if (emax-emin<1e-9) sprintf(s,"max-min=%.2g",emax-emin);
-              else if (emax-emin<1e-2) sprintf(s,"max-min=%.3g",emax-emin);
-              else sprintf(s,"max-min=%.4g",emax-emin);
-              fl_draw(s,atx+100,aty+120);
+            loop (i,0,HISTMAX) {
+              int ii=(i+itot)%HISTMAX;
+              if (etot[ii]>-8e99) {
+                int y=102.5-(etot[ii]-emin)*demax;
+                fl_line(atx+i,aty+y,atx+i,aty+102); } }
 
-              // quantity to show: should correspond to CPval above
-              fl_draw(90,yaxis,atx-18,aty+55+4*strlen(yaxis));
+            fl_line_style(FL_SOLID,0,NULL); }
 
-              if (emax<=emin) {
-                fl_color(OI_RED);
-                fl_draw(measureinfo[measure],atx,aty+40);
-                fl_draw("nothing to show – zero range",atx,aty+60);
-                break; }
-
-              sq=sqrt((sq-Sqr(sume)/netot)/(netot-1));
-              sprintf(s,"stdev=%.3g",sq);
-              fl_draw(s,atx+100,aty-5);
-
-              //          fl_color(FL_DARK_GREEN); =(0,145,0)
-              fl_color(fl_rgb_color(0,120,0));
-              fl_line_style(FL_SOLID,0,NULL);
-              fl_rectf(atx,aty,HISTMAX,102);
-
-              /* draw grid */
-              double demax=102/(emax-emin);
-              double ex=log(emax-emin)/log(2.);
-              double dl=floor(ex);
-              double fr=ex-floor(ex);
-              dl=pow(2.,dl-1.5); // -> number of shaded lines
-              fl_color(fl_rgb_color(0,190,0));
-
-              ex=floor(emin/dl)*dl;
-              dl/=2;
-              while (ex<=emax) {
-                int y=102.5-(ex-emin)*demax;
-                if (ex>=emin) {
-                  fl_color(fl_rgb_color(0,220,0));
-                  fl_line(atx,aty+y,atx+HISTMAX,aty+y); }
-                ex+=dl;
-                if (ex>emax) break;
-                if (ex>=emin) {
-                  y=102.5-(ex-emin)*demax;
-                  fl_color(fl_rgb_color(0,(int)(220-100*fr),0));
-                  fl_line(atx,aty+y,atx+HISTMAX,aty+y); }
-                ex+=dl; }
-
-              /* draw convergence profile */
-              // fl_color(OI_YELLOW); // too dark
-              fl_color(LIGHTYELLOW);
-
-              loop (i,0,HISTMAX) {
-                int ii=(i+itot)%HISTMAX;
-                if (etot[ii]>-8e99) {
-                  int y=102.5-(etot[ii]-emin)*demax;
-                  fl_line(atx+i,aty+y,atx+i,aty+102); } }
-
-              fl_line_style(FL_SOLID,0,NULL); }
-
-            break;
+          break;
 
         case RDF: {
           double vv,rr;
@@ -492,7 +502,8 @@ private:
 
           fl_draw(90,"g(r)",x()+18,aty+70);
 
-          loopto (i,0,6) {
+          // print r=0,1,...
+          loopto (i,0,8) {
             sprintf(s,"%d",i);
             fl_draw(s,atx-5+50*i,aty+115); }
           if (shownbrs) fl_draw("neighbor limit",atx+72,aty+130);
@@ -524,7 +535,7 @@ private:
           fl_rectf(atx,aty,HISTMAX,100);
 
           fl_color(FL_WHITE);
-          fl_draw("RDF",atx+3,aty+20);
+          fl_draw("RDF",atx+5,aty+20);
 
           fl_color(LIGHTYELLOW);
           loop (i,1,HISTMAX) {
@@ -561,6 +572,7 @@ private:
           // fl_line(atx+i+2,aty+115,atx+i-1,aty+115);
 
           fl_line_style(FL_SOLID,0,NULL); }
+
           break;
 
         case YPROFILE: {
@@ -616,7 +628,7 @@ private:
           fl_rectf(atx,aty,HISTMAX,100);
 
           fl_color(FL_WHITE);
-          fl_draw("Vertical density profile, smoothed",atx+3,aty+20);
+          fl_draw("Vertical density profile",atx+5,aty+20);
 
           fl_color(LIGHTYELLOW);
           loop (i,1,HISTMAX) {
@@ -665,7 +677,10 @@ private:
           fl_rectf(atx,aty,HISTMAX,100);
 
           fl_color(FL_WHITE);
-          fl_draw(measure==CPROFILE?"radial density profile (cavity)":"radial density profile (droplet)",atx+3,aty+20);
+          if (measure==CPROFILE)
+            fl_draw("Cavity radial density profile",atx+5,aty+20);
+          else
+            fl_draw("Droplet radial density profile",atx+195,aty+20);
 
           vv*=100.0;
           fl_color(LIGHTYELLOW);
@@ -692,7 +707,8 @@ private:
           break;
 
           default:; /* to make the compiler happy */
-      }
+        } // measure
+
 
       // for next cumulative sums:
       memset(hist,0,(HISTMAX+1)*sizeof(hist[0]));
@@ -710,13 +726,12 @@ public:
 };
 
 /* left top of ButtonPanel */
-class SliderPanel : public Fl_Box
+class ParameterPanel : public Fl_Box /////////////////////////// ParameterPanel
 {
 public:
-  SliderPanel (int X, int Y, int W, int H,char const *LL=0)
-    : Fl_Box(X,Y,W,H,LL) {
+  ParameterPanel (int X,int Y,int W,int H,char const *LL=0) : Fl_Box(X,Y,W,H,LL) {
 
-    int atx=X+8;
+    int atx=X+12;
     int aty=Y+6;
     int dx=(W-6)/5;
     int sh=H-26;
@@ -773,6 +788,25 @@ See also button [set d] for automatic adjustment.\n\
 Applies also to volume-change in NPT.\n\
 Maximum displacement = L/2.");
 
+    /* Vicsek only (implies periodic b.c.) */
+    sliders.c=new Fl_Fill_Slider(atx, aty, 20, sh,"c");
+    sliders.c->type(FL_VERT_FILL_SLIDER);
+    sliders.c->minimum(6);
+    sliders.c->maximum(2);
+    sliders.c->value(0);
+    sliders.c->color(SLIDERCOLOR);
+    sliders.c->tooltip("\
+CUTOFF c\n\
+\n\
+Defines the range for determining neighbors\n\
+in the Vicsek model of active matter as well\n\
+as the underlying penetrable disk radius.\n\
+Equivalent to variable c in [cmd:]; however,\n\
+with a narrower allowed range.\n\
+This slider is not active for other models\n\
+to prevent accidental change.");
+
+    /* not periodic b.c. */
     sliders.g=new Fl_Fill_Slider(atx, aty, 20, sh,"g");
     atx+=dx;
     sliders.g->type(FL_VERT_FILL_SLIDER);
@@ -834,11 +868,10 @@ MD may fail and will be temporarily replaced by MC.");
 };
 
 /* right top of ButtonPanel */
-class WallPanel : public Fl_Box
+class WallPanel : public Fl_Box ///////////////////////////////////// WallPanel
 {
 public:
-  WallPanel (int X, int Y, int W, int H,char const *LL=0)
-  : Fl_Box(X,Y,W,H,LL) {
+  WallPanel (int X,int Y, int W,int H,char const *LL=0) : Fl_Box(X,Y,W,H,LL) {
     color(FL_GRAY);
     align(FL_ALIGN_TOP);
     box(FL_UP_BOX);
@@ -846,48 +879,128 @@ public:
     int atx=X+6;
     int aty=Y+6;
     const char *winfo="toggle attractive (green)\nand repulsive (red) walls";
+    const char *shiftinfo="shift the configuration\nperiodically";
 
     buttons.wally =new Fl_Light_Button(atx+W/2-39,aty,70,20,"   top");
     buttons.wally->selection_color(OI_GREEN);
     //    buttons.wally->align(FL_ALIGN_CENTER); does not center :(
     buttons.wally->tooltip(winfo);
+    buttons.shift_up=new Fl_Button(atx+W/2-43,aty,75,20,"shift up");
+    buttons.shift_up->callback(cb_shift_up);
+    buttons.shift_up->tooltip(shiftinfo);
 
     buttons.wallx =new Fl_Light_Button(atx,aty+26,53,20," left");
     buttons.wallx->selection_color(OI_GREEN);
     // no function to select the unselected state color ?!
     buttons.wallx->tooltip(winfo);
+    buttons.shift_left=new Fl_Button(atx,aty+26,75,20,"shift left");
+    buttons.shift_left->callback(cb_shift_left);
+    buttons.shift_left->tooltip(shiftinfo);
 
-    buttons.wallxL=new Fl_Light_Button(atx+W-66,aty+26,53,20,"right");
+    buttons.wallxL=new Fl_Light_Button(atx+W-66,aty+26,54,20,"right");
     buttons.wallxL->selection_color(OI_GREEN);
     buttons.wallxL->tooltip(winfo);
+    buttons.shift_right=new Fl_Button(atx+W-86,aty+26,75,20,"shift right");
+    buttons.shift_right->callback(cb_shift_right);
+    buttons.shift_right->tooltip(shiftinfo);
 
     buttons.wallyL=new Fl_Light_Button(atx+W/2-39,aty+52,70,20,"bottom");
     buttons.wallyL->selection_color(OI_GREEN);
     buttons.wallyL->tooltip(winfo);
+    buttons.shift_down=new Fl_Button(atx+W/2-44,aty+52,75,20,"shift down");
+    buttons.shift_down->callback(cb_shift_down);
+    buttons.shift_down->tooltip(shiftinfo);
 
-    invertwalls=new Fl_Button(atx+W/4+16,aty+25,61,20,"invert");
-    invertwalls->callback(cb_invertwalls);
-    invertwalls->tooltip("\
+    buttons.invertwalls=new Fl_Button(atx+W/2-34,aty+25,61,20,"invert");
+    buttons.invertwalls->callback(cb_invertwalls);
+    buttons.invertwalls->tooltip("\
 INVERT WALLS\n\
 \n\
-Change attractive walls to repulsive and vice versa.");
+Change attractive (green) walls\n\
+to repulsive (red) and vice versa.");
   }
 };
 
-/* below WallPanel */
-class ExpertPanel : public Fl_Box
+#define PRINTHEIGHT 23
+
+class ExpertPanel : public Fl_Box ///////////////////////////////// ExpertPanel
 {
+protected:
+  void draw () {
+    /* print previous command of [cmd:] aggregated string */
+    int atx=x()+6,aty=y()+6;
+
+    //    Fl_Box::draw();
+    // I'm missing function drawing a frame using FL_UP_BOX
+    fl_frame("XXAA",x(),y(),w(),h());
+
+    fl_font(FL_HELVETICA,16);
+    fl_draw_box(FL_FLAT_BOX,atx,aty,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
+    fl_color(FL_BLACK);
+    fl_draw(printcmd,atx+1,aty+17);
+  }
+
 public:
-  ExpertPanel (int X, int Y, int W, int H,char const *LL=0)
-    : Fl_Box(X,Y,W,H,LL) {
+  ExpertPanel (int X,int Y,int W,int H,char const *LL=0) : Fl_Box(X,Y,W,H,LL) {
     color(FL_GRAY);
     align(FL_ALIGN_TOP);
     box(FL_UP_BOX);
 
     int atx=X+6;
-    int aty=Y+6;
+    int aty=Y+6+PRINTHEIGHT+8;
 
-    buttons.record=new Fl_Light_Button(atx,aty,70,20,"record");
+    fl_font(FL_HELVETICA,16);
+
+    buttons.cmd=new Fl_Input(atx+38,aty,W-49,24,"cmd:");
+    buttons.cmd->callback(cb_cmd);
+    buttons.cmd->tooltip("\
+PARAMETERS\n\
+\n\
+Enter/print parameter:\n\
+  VARIABLE                   (print the value)\n\
+  VARIABLE=NUMBER (assign)\n\
+Both . and , allowed as dec. separator in NUMBER.\n\
+Selected available VARIABLEs are:\n\
+  block = measurement block\n\
+  d = trial displacement size (MC), in L/2\n\
+  dt = h = MD timestep; 0 = based on T,τ\n\
+  dV = relative trial volume change (NPT MC)\n\
+  g = gravity\n\
+  L = box size (ρ recalculated)\n\
+  N = number of atoms (L recalculated)\n\
+  P = pressure (NPT only)\n\
+  qtau, qτ = for MD/NPT: tauP=qtau*tau\n\
+  rho, ρ = number density (L recalculated)\n\
+  stride = every stride-th config. shown\n\
+  T = temperature (not NVE)\n\
+  tau, τ = thermostat time constant (MD)\n\
+  wall = wall number density\n\
+More VARIABLEs (see the manual):\n\
+  a b bc c circle measure method nbr show trace v\n\
+Example:\n\
+  ρ=0.01\n\
+Values out of slider range are accepted.");
+
+    aty+=30;
+
+    incl=new Fl_Choice(atx+59,aty,W-70,25,"include:");
+    incl->menu(inclitems);
+    incl->tooltip("\
+WHAT TO MEASURE AND EXPORT\n\
+\n\
+Nothing = only statistics of basic quantities\n\
+Convergence profile = also convergence profiles\n\
+  of basic quantities\n\
+Density profile = also the active distribution function\n\
+  as selected in menu Show and shown in the graph:\n\
+  RDF, y-profile, droplet or cavity, radial profiles\n\
+Both = also both above profiles\n\
+• If CSV is selected, there is a separate CSV file for each output\n\
+• In no CSV, the output goes to the TXT-file");
+
+    aty+=32;
+
+    buttons.record=new Fl_Light_Button(atx,aty,68,20,"record");
     buttons.record->selection_color(OI_GREEN);
     // no function to select the unselected state color ?!
     buttons.record->tooltip("\
@@ -901,7 +1014,7 @@ Use menu [Show] to select quantites/graphs\n\
 Use menu [File] to change file name\n\
 NB: [Show]->Minimum is changed to Quantities.");
 
-    buttons.csv=new Fl_Light_Button(atx+85,aty,52,20,"CSV");
+    buttons.csv=new Fl_Light_Button(atx+W/2-34,aty,50,20,"CSV");
     buttons.csv->selection_color(OI_GREEN);
     buttons.csv->value(1);
     buttons.csv->tooltip("\
@@ -915,86 +1028,42 @@ Affects convergence profiles and distribution functions.\n\
 • If deselected, the outputs are in the protocol (.txt),\n\
    separated by tabulators.");
 
-    buttons.comma=new Fl_Light_Button(atx+W-53,aty,40,20,"  , ");
+    buttons.comma=new Fl_Light_Button(atx+W-87,aty,73,20,"comma");
+    //    buttons.comma=new Fl_Light_Button(atx+W-53,aty,40,20,"  , ");
     buttons.comma->selection_color(OI_GREEN);
     buttons.comma->tooltip("\
 DECIMAL POINT=COMMA\n\
 \n\
 If selected, comma (,) will replace period (.)\n\
 in the recorded files. Also, the separator\n\
-in CSV files is changed into semicolon (;).");
-
-    incl=new Fl_Choice(atx+59,aty+29,W-70,25,"include:");
-    incl->menu(inclitems);
-    incl->tooltip("\
-WHAT TO MEASURE AND EXPORT\n\
-\n\
-Nothing = only statistics of basic quantities\n\
-Convergence prof. = also convergence profiles\n\
-  of basic quantities\n\
-Density profile = also the active distribution function\n\
-  as selected in menu Show and shown in the graph:\n\
-  RDF, y-profile, droplet or cavity, radial profiles\n\
-Both = also both above profiles\n\
-• If CSV is selected, there is a separate CSV file for each output\n\
-• In no CSV, the output goes to the TXT-file");
-
-    buttons.parms=new Fl_Input(atx+38,aty+62,W-49,20,"cmd:");
-    buttons.parms->callback(cb_parms);
-    buttons.parms->tooltip("\
-PARAMETERS\n\
-\n\
-Enter parameter as command:\n\
-  VARIABLE=number\n\
-Both dec. comma (,) and period (.) accepted\n\
-Selected available VARIABLEs are:\n\
-  block = measurement block\n\
-  d = trial displacement size (MC), in L/2\n\
-  dt = h = MD timestep; 0 = based on T,τ\n\
-  dV = relative trial volume change (NPT MC)\n\
-  g = gravity\n\
-  L = box size\n\
-  N = number of atoms\n\
-  nbr = distance limit to define neighbor\n\
-  P = pressure (NPT only)\n\
-  qtau = for MD/NPT: tauP=qtau*tau\n\
-  rho = number density\n\
-  stride = every stride-th config. shown\n\
-  T = temperature (not NVE)\n\
-  tau = thermostat time constant (MD)\n\
-  wall = wall number density\n\
-More variables (see the manual):\n\
-  a, b, bc, c, circle, measure, method, show\n\
-Example:\n\
-  rho=0.01\n\
-Values out of slider range are accepted.");
+in CSV files is changed into semicolon (;).\n\
+In the cmd: field, both . and , are accepted.");
   }
 };
 
+
 // lower half of the right panel
-class ButtonPanel : public Fl_Box
+class ButtonPanel : public Fl_Box ///////////////////////////////// ButtonPanel
 {
 public:
-  ButtonPanel (int X, int Y, int W, int H)
-    : Fl_Box(X,Y,W,H) {
+  ExpertPanel *expertpanel;
 
-    /*
-      SliderPanel *sliderpanel=new SliderPanel(X+3,Y+20,W/2,H*3/5-25,"Parameters");
-      WallPanel *wallpanel=new WallPanel(X+W/2+9,Y+20,W/2-12,91,"Walls");
-      ExpertPanel *expertpanel=new ExpertPanel(X+W/2+9,Y+H*3/5-71,W/2-12,66,"Expert");
-    */
+  ButtonPanel (int X, int Y, int W, int H) : Fl_Box(X,Y,W,H) {
 
-    new SliderPanel(X+3,Y+20,W*4/9,H*3/5-20,"Parameters");
-    new WallPanel  (X+W*4/9+9,Y+20,W*5/9-12,H/4-9,"Walls");
-    new ExpertPanel(X+W*4/9+9,Y+H/4+37,W*5/9-12,H/4+2,"Expert");
+    // ParameterPanel, WallPanel not redrawn ⇒ pointers not needed
+    new ParameterPanel(X+4,Y+20,W/2-16,H*3/5-20,"Parameters");
+    new WallPanel(X+W/2+4,Y+20,W/2-12,H/4-9,"Walls");
+    // expertpanel contains previous cmd: to be redrawn
+    expertpanel=new ExpertPanel(X+W/2+4,Y+H/4+36,W/2-12,H/4+33,"Expert");
 
-#define CHOICEW 102
+    // bottom four lines (expertpanel covers 1st line right)
+    // color(FL_YELLOW);
+    // box(FL_UP_BOX);
 
-    // bottom four lines
+    int atx=X+4, aty=Y+H*2/3-10;
 
-    int atx=X+CHOICEW+7,aty=Y+H*2/3-10;
-
-    molsize=new Fl_Choice(atx,aty,CHOICEW,25,"molecule size:");
+    // 1st line
+    molsize=new Fl_Choice(atx+W/2-130,aty,W/4-5,25,"molecule size:");
     molsize->menu(molsizeitems);
     molsize->tooltip("\
 MOLECULE SIZE\n\
@@ -1004,16 +1073,55 @@ Small = half the real size\n\
 Dot = 5 pixels\n\
 Pixel = 1 pixel");
 
-    resetview=new Fl_Button(atx+CHOICEW+20,aty,88,25,"reset view");
+    // 2nd line
+    aty+=30;
+    drawmode=new Fl_Choice(atx+W/2-130,aty,W/4-5,25,"draw mode:");
+    drawmode->menu(drawmodeitems);
+    drawmode->tooltip("\
+DRAW MODE\n\
+\n\
+Movie = show moving molecules\n\
+Traces = draw trajectories gradually fading out\n\
+         change length by variable trace (from cmd:)\n\
+Lines = draw trajectories (best with Dot or Pixel)\n\
+Nothing = do not draw (use to speed up)");
+
+    resetview=new Fl_Button(atx+W/2+4,aty,88,25,"reset view");
     resetview->callback(cb_resetview);
     resetview->tooltip("\
 RESET VIEW\n\
 \n\
-• Reset molecule size, draw mode,\n\
-   and color to the defaults\n\
-• Reset convergence profile\n");
+Reset molecule size, draw mode,\n\
+and color to the defaults.\n");
 
-    setd=new Fl_Light_Button(atx+CHOICEW+20,aty+30,118,25,"set MC moves");
+    resetgraph=new Fl_Button(atx+W-114,aty,97,25,"reset graph");
+    resetgraph->callback(cb_resetgraph);
+    resetgraph->tooltip("\
+RESET GRAPH\n\
+\n\
+Erase the convergence profile data\n\
+in the green/yellow graph above\n\
+and set the min-max range anew.\n");
+
+    // 3rd line
+    aty+=30;
+    colormode=new Fl_Choice(atx+W/2-130,aty,W/4-5,25,"color mode:");
+    colormode->menu(colormodeitems);
+    colormode->tooltip("\
+COLOR MODE\n\
+\n\
+Black = all atoms are black\n\
+One = one atom black, the rest orange\n\
+y-split = top half of the configuration is blue,\n\
+    bottom half red, and these colors are kept\n\
+Neighbors = color atoms by the number of neighbors\n\
+    the color code is shown top right (Okabe+Ito palette)\n\
+Random = colorize atoms randomly (and keep)\n\
+Art = cycle through rainbow colors, best with draw mode=Line\n\
+    change length by variable trace (from cmd:)\n\
+Keep = keep the colors (e.g., after Neighbors)");
+
+    setd=new Fl_Light_Button(atx+W/2+4,aty,118,25,"set MC moves");
     setd->selection_color(OI_GREEN);
     setd->tooltip("\
 AUTOMATIC DETERMINATION OF MC MOVE SIZE\n\
@@ -1032,7 +1140,7 @@ The value of dV (max relative change of L in a step)\n\
 can be set from cmd:, but not from a slider.");
     setd->value(1);
 
-    run=new Fl_Light_Button(atx+CHOICEW+20,aty+60,48,25,"run");
+    run=new Fl_Light_Button(atx+W-65,aty,48,25,"run");
     run->selection_color(OI_GREEN);
     run->tooltip("RUN CONTROL\n\n\
 checked (green) = simulation is running\n\
@@ -1041,37 +1149,12 @@ Useful to change parameters if the current setup\n\
 keeps launching errors.");
     run->value(1);
 
-    aty+=30;
-    drawmode=new Fl_Choice(atx,aty,CHOICEW,25,"draw mode:");
-    drawmode->menu(drawmodeitems);
-    drawmode->tooltip("\
-DRAW MODE\n\
-\n\
-Movie = show moving molecules\n\
-Traces = draw trajectories gradually fading out\n\
-Lines = draw trajectories (best with Dot or Pixel)\n\
-Nothing = do not draw (use to speed up)");
-
-    aty+=30;
-    colormode=new Fl_Choice(atx,aty,CHOICEW,25,"color mode:");
-    colormode->menu(colormodeitems);
-    colormode->tooltip("\
-COLOR MODE\n\
-\n\
-Black = all atoms are black\n\
-One = one atom black, the rest orange\n\
-y-split = top half of the configuration is blue,\n\
-    bottom half red, and these colors are kept\n\
-Neighbors = color atoms by the number of neighbors\n\
-    the color code is shown top right (Okabe+Ito palette)\n\
-Random = colorize atoms randomly (and keep)\n\
-Keep = keep the colors (e.g., after Neighbors)");
-
+    // 3rd line
     atx=X+4;
     aty=Y+H-40;
 
     //    sliders.speed=new Fl_Fill_Slider(atx, aty, PANELW/2-38, 20,"simulation speed");
-    sliders.speed=new Fl_Fill_Slider(atx, aty, PANELW/2-8, 20,"simulation speed");
+    sliders.speed=new Fl_Fill_Slider(atx, aty, W/2-14, 20,"simulation speed");
     sliders.speed->type(FL_HOR_FILL_SLIDER);
     sliders.speed->minimum(MINSPEED);
     sliders.speed->maximum(MAXSPEED+1.5); // note that >MAXSPEED+1⇒ max speed
@@ -1088,7 +1171,7 @@ SIMULATION SPEED\n\
 • rightmost: every 10th frame shown as fast as possible\n\
 →watch stride*block and delay in the 4th line\n");
 
-    //    sliders.block=new Fl_Fill_Slider(atx+PANELW/2-31, aty,PANELW/2-38, 20,"measurement block");
+    //    sliders.block=new Fl_Fill_Slider(atx+W/2-26, aty,W/2-38, 20,"measurement block");
     sliders.block=new Fl_Fill_Slider(atx+PANELW/2-1, aty,PANELW/2-8, 20,"measurement block");
     sliders.block->type(FL_HOR_FILL_SLIDER);
     sliders.block->minimum(0); // log(1)
@@ -1100,17 +1183,18 @@ SIMULATION SPEED\n\
 block ∈ [1, 100]\n\
 Measurements (of kinetic temperature Tkin,\n\
 pressure P, RDF, etc.) are averaged in blocks\n\
-and shown/exported after a block has completed.");
-  }
+and shown/exported after a block has completed."); }
 
   ~ButtonPanel() { }
 };
 
 
-//JK Panel is Fl_Box, because:
+// Panel is inherited from Fl_Box, because:
 // 1) system redraws the box
 // 2) undocumented method win.resizable() is out of order or deprecated
-class Panel : public Fl_Box {
+
+class Panel : public Fl_Box ///////////////////////////////////////////// Panel
+{
 public:
   InfoPanel *infopanel;
   ResultPanel *resultpanel;

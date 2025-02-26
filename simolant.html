@@ -1,9 +1,9 @@
 <head>
-  <title>SIMOLANT 01/2025</title>
+  <title>SIMOLANT 02/2025</title>
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 <body>
-  <h1><font color="NAVY" face="SANS">SIMOLANT 01/2025</font></h1>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 02/2025</font></h1>
 
 <!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
 
@@ -28,6 +28,7 @@
       <ul>
         <li><a href="#File">File</a></li>
         <li><a href="#Prepare">Prepare system</a></li>
+        <li><a href="#FF">Force field</a></li>
         <li><a href="#Method">Method</a></li>
         <li><a href="#BC">Boundary conditions</a></li>
         <li><a href="#Show">Show</a></li>
@@ -38,7 +39,7 @@
       <ul>
         <li><a href="#Symbols">Symbols</a></li>
         <li><a href="#Variables">Variables</a></li>
-        <li><a href="#Sliders">Sliders</a></li>
+        <li><a href="#Sliders">Parameters (Sliders panel)</a></li>
         <li><a href="#Walls">Walls</a></li>
         <li><a href="#Expert">Expert</a></li>
         <li><a href="#Switches">Switches</a></li>
@@ -96,6 +97,7 @@
     <li>Crystal defects in motion.</li>
     <li>Gas in a gravitational field.</li>
     <li>Impact of a solid body (crystal) to a wall.</li>
+    <li>Swarming (flocking).</li>
   </ul>
 
   <a name="University"></a>
@@ -160,8 +162,7 @@
   <p>where constants <i>A</i> and <i>c</i>₁ (<i>c</i>₁&lt;<i>c</i>) are
     determined so that both the potential and forces are continuous (the
     derivate of forces has jumps).  No cutoff corrections are added.  The
-    recommended default <i>c</i>=4, the minimum is <i>c</i>=2.232.  Any value
-    of <i>c</i>&ge;2.232 selects this potential.</p>
+    recommended default <i>c</i>=4, the minimum is <i>c</i>=2.232.</p>
 
   <p>For <i>c</i>&lt;L/2 (L is the square box side), the nearest-image
     algorithm is used, otherwise a sum over all periodic images is
@@ -238,34 +239,40 @@
     <li><a name="WCA"></a><b>WCA interaction potential</b><br>
       The WCA potential is the Lennard-Jones (here 2D version) potential
       truncated at the minimum and shifted:<br><br>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴ +1 &nbsp; for <i>r</i> &lt; <i>c</i><br>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp;  &nbsp;  &nbsp;  &nbsp;  &nbsp;  &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
-      where <i>c</i> = 2^(1/4).  Any <i>c</i> ∈ (1,2) is transformed
-      to <i>c</i> = 2^(1/4) = 1.1892071 and selects this potential.</li>
+      
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴ +1 &nbsp; for <i>r</i> &lt; <i>c</i><br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
+      
+      where <i>c</i> = 2^(1/4).</li>
 
     <li><a name="PD"></a><b>Penetrable disks and ideal gas</b><br>
-    The PD (penetrable spheres, here penetrable disks) is a simple model
-    of a polymer coil in a good solvent.  It is selected by <i>c</i>=2:<br><br>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−4)² &nbsp; &nbsp; for <i>r</i> &lt; 2<br>
-    &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; 2<br><br>
-    Normally, <i>a</i>=1/2.  From cmd:, any value can be set:<br>
-    <i>a</i>&gt;0 &nbsp; &nbsp; repulsive penetrable spheres (disks),<br>
-    <i>a</i>=0    &nbsp; &nbsp; ideal gas (not too much fun with it),<br>
-    <i>a</i>&lt;0 &nbsp; &nbsp; attractive penetrable spheres (disks) are
-    thermodynamically singular (the thermodynamic limit diverges).</li>
+      The PD (penetrable spheres, here penetrable disks) is a simple model of
+      a polymer coil in a good solvent.<br><br>
+      
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−c²)²/c² &nbsp; &nbsp; for <i>r</i> &lt; 2<br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; 2<br><br>
+      
+      Normally, <i>a</i>=1/2.  From cmd:, any value can be set:<br>
+      &nbsp; &nbsp; <i>a</i>&gt;0 &nbsp; &nbsp; repulsive penetrable spheres (disks),<br>
+      &nbsp; &nbsp; <i>a</i>=0    &nbsp; &nbsp; ideal gas (not too much fun with it),<br>
+      &nbsp; &nbsp; <i>a</i>&lt;0 &nbsp; &nbsp; attractive penetrable spheres (disks) are
+      thermodynamically singular (the thermodynamic limit diverges).</li>
 
     <li>
       <a name="DW"></a><b>Double wall</b><br> The double wall potential with a
       good choice of parameters might give a quasicrystal of 2D Penrose
       tesselation:<br><br>
-      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = const (1−<i>r</i>²) (<i>a</i>²−<i>r</i>²) (<i>b</i>²−<i>r</i>²) (<i>c</i>²/<i>r</i>²−1)² &nbsp;  for <i>r</i> &lt; |<i>c</i>|<br>
-      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; |<i>c</i>|<br><br>
-      where, for the sake of temperature scale purpose, const is selected so
+      
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = const (1−<i>r</i>²) (<i>a</i>²−<i>r</i>²) (<i>b</i>²−<i>r</i>²) (<i>c</i>²/<i>r</i>²−1)² &nbsp;  for <i>r</i> &lt; <i>c</i><br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
+      
+      where, for the sake of temperature scale purpose, const is calculated so
       that ∫_1^∞ <i>u</i>(<i>r</i>)² d<i>r</i> = 512/1155 is the same as for the
-      2D Lennard-Jones.  This potential is selected by <i>c</i>&lt−1.
+      2D Lennard-Jones. 
       Parameters <i>a</i> and <i>b</i> are the nodes (zero values of the
-      potential), it should hold 1 &lt; <i>a</i> &lt; <i>b</i> &lt; |<i>c</i>|
-      Note that no check is performed of this condition.</li>
+      potential), it should hold 1 &lt; <i>a</i> &lt; <i>b</i> &lt; <i>c</i>.
+      No check is performed of this condition.</li>
+
   </ul>
 
   <a name="Menus"></a>
@@ -307,38 +314,6 @@
   </ul>
 
 
-
-  <a name="FF"></a>
-  <h3><font color="navy" face="sans"><i>F<u>o</u>rce field</i></font></h3>
-  <ul>
-    <li><b><u>L</u>ennard-Jones c=4 (recommended)</b><br>
-      Standard <a href="#Potential">2D Lennard-Jones potential</a> smoothly
-      cut off at <i>c</i>=4.  Parameter <i>c</i> cn be changed from cmd:, any
-      value <i>c</i>&ge;2.232 selects this type of the potential.</li>
-
-    <li><b><u>R</u>epulsive (WCALJ, c=1.1892)</b><br>
-      <a href="#WCA">Repulsive potential</a> cut at 2D Lennard-Jones minimum
-      and shifted.  Acronym WCALJ refers to its use in the
-      Weeks–Andersen–Chandler perturbation theory.</li>
-
-    <li><b><u>P</u>enetrable disks (a=0.5,c=2)</b><br> A model
-        of <a href="#PD">penetrable disks</a> (spheres in 3D), a 2D analogue of
-        a model of polymer coils in a good solvent.
-      Parameter <i>c</i>=2 selects penetrable disks, the potential
-        height <i>a</i>=1/2 can be changed from cmd:.</li>
-    <li><b><u>I</u>deal gas (a=0,c=2)</b><br>
-      As above with no interaction (ideal gas).
-    <li><b><u>A</u>ttractive disks (a=−0.5,c=2)</b><br> As above with
-      attraction.  This model does not have a thermodynamic limit (the Gibbs
-      state is singular).</li>
-
-    <li><b><u>D</u>ouble well (a=1.25,b=1.4,c=-2)</b><br>
-      <a href="#DW">A potential with a double
-      well</a>. Parameters <i>a</i>,<i>b</i>,<i>c</i> can be changed from
-      cmd:; |<i>c</i>| is the cutoff (−∞%lt;<i>c</i>−1 selects the
-      double-well potential), it must hold  1 &lt; <i>a</i> &lt; <i>b</i> &lt;
-      |<i>c</i>|.
-  </ul>
 
   <a name="Prepare"></a>
   <h3><font color="navy" face="sans"><i><u>P</u>repare system</i></font></h3>
@@ -384,18 +359,24 @@
       temperature <font face="helvetica">T=0.6</font> in the periodic
       boundary consitions.  It will solidify on cooling and evaporate on
       heating up.<br>
-      With a smaller number of particles and lower density ans small τ, the
-      flyinf icecube artifact can be observed with the Berendesen
+      With a smaller number of particles, lower density and small τ, the
+      flying icecube artifact can be observed with the Berendesen
       thermostat.</li>
 
+    <li><b><u>B</u>ubble (cavity)</b><br>
+      A cavity (commonly called "bubble") in liquid.</li>
+
+    <li><b><u>T</u>wo droplets</b><br>
+      Two droplets are created with velocity <i>v</i>=0.1 towards each other.
+      This velocity can be changed from cmd:; the default is 1, the maximum is
+      10, the minimum 0.  The simulation is NVE so that the change in
+      temperature can be observed.</li>   
+      
     <li><b><u>C</u>apillary</b><br>
       Capillary action under a microscope. The left, right, and bottom
       walls are attractive and a small gravity is turned on. You can see
       a meniscus.  Try to make the left and right walls repulsive and
       observe the changes!</li>
-
-    <li><b><u>B</u>ubble (cavity)</b><br>
-      A cavity (commonly called "bubble") in liquid.</li>
 
     <li><b><u>H</u>exagonal crystal</b><br>
       A perfect piece of hexagonal crystal
@@ -427,6 +408,44 @@
     <li><b>+ <u>I</u>nterstitial</b><br>
       One additional atom in a perfect crystal. This atom has a high
       energy diffuses very fast.</li>
+
+    <li><b>Vicse<u>k</u> active matter</b><br>
+      Gas of penetrable disks with <i>a</i>=0.2, <i>c</i>=4, low density, and
+      the <a href="#V">Vicsek algorithm</a>.
+      This is a model of a flock of birds or school of fish.
+    </li>
+  </ul>
+
+  <a name="FF"></a>
+  <h3><font color="navy" face="sans"><i>F<u>o</u>rce field</i></font></h3>
+  <ul>
+    <li><b><u>L</u>ennard-Jones c=4 (recommended)</b><br>
+      Standard <a href="#Potential">2D Lennard-Jones potential</a> smoothly
+      cut off at <i>c</i>=4.  Parameter <i>c</i> can be changed from cmd:, any
+      value <i>c</i>&ge;2.232 selects this type of the potential.</li>
+
+    <li><b><u>R</u>epulsive (WCALJ, c=1.1892)</b><br>
+      <a href="#WCA">Repulsive potential</a> cut at 2D Lennard-Jones minimum
+      and shifted.  Acronym WCALJ refers to its use in the
+      Weeks–Andersen–Chandler perturbation theory.</li>
+
+    <li><b><u>P</u>enetrable disks (a=1,c=2)</b><br> A model
+        of <a href="#PD">penetrable disks</a> (spheres in 3D), a 2D analogue of
+        a model of polymer coils in a good solvent.
+      Parameter <i>c</i>=2 selects penetrable disks, the potential
+        height <i>a</i>=1/2 can be changed from cmd:.</li>
+    <li><b><u>I</u>deal gas (a=0,c=2)</b><br>
+      As above with no interaction (ideal gas).
+    <li><b><u>A</u>ttractive disks (a=−1,c=2)</b><br> As above with
+      attraction.  This model does not have a thermodynamic limit (the Gibbs
+      state is singular).</li>
+
+    <li><b><u>D</u>ouble well (a=1.25,b=1.4,c=-2)</b><br>
+      <a href="#DW">A potential with a double
+      well</a>. Parameters <i>a</i>,<i>b</i>,<i>c</i> can be changed from
+      cmd:; <i>c</i> is the cutoff, it must hold 1 &lt; <i>a</i> &lt; <i>b</i>
+      &lt;
+      <i>c</i>.
   </ul>
 
   <a name="Method"></a>
@@ -666,7 +685,29 @@
       paper <a href="https://doi.org/10.1063/1.467468">G. J. Martyna,
         D. J. Tobias, M. L. Klein: <i>J. Chem. Phys.</i> 101, 4177 (1994)</a>,
       for our implementation see <a href="https://doi.org/10.1063/5.0193281">J. Janek,
-        J. Kolafa: <i>J. Chem. Phys.</i> 160, 184111 (2024)</a>.
+        J. Kolafa: <i>J. Chem. Phys.</i> 160, 184111 (2024).
+
+    <li>
+      <a name="V"></a><b>Vicsek with NVT (Langevin)</b><br>
+
+      The same as the Langevin thermostat with the velocity of each particle
+      (“bird” or “fish”) attaing the weighted averaged velocity from all
+      particles within cutoff <i>c</i>:<br><br>
+      &nbsp; &nbsp; <i>v<sub>i</sub></i> := ∑<i><sub>j</sub></i> <i>v<sub>j</sub></i>*<i>w<sub>j</sub></i> / ∑<i><sub>j</sub></i> <i>w<sub>j</sub></i>, where <i>w<sub>j</sub></i>=c²−<i>r<sub>j</sub></i>²
+      <br><br>
+      Then, the velocity is renormalized to |v|=√T.
+      A Langevin thermostat step follows. <br>
+
+      Only the periodic boundary conditions are supported (box and slit are changed to periodic).<br>
+
+      A user may change the potential and its parameters; particularly, the
+      cutoff <i>c</i> (the same value for the potential and neighbor
+      definition); it, however, must not be too long.  Thermostat
+      parameter <i>τ</i> controls the chaos.  The temperature with penetrable
+      disks and small <i>a</i> essentially scales time and does not change
+      trajectories.
+    </li>
+
   </ul>
 
   <a name="BC"></a>
@@ -684,8 +725,10 @@
     <li><b><u>P</u>eriodic</b><br>
       The system is periodic in both the <i>x</i>- and <i>y</i>-directions. The
       topology is the same as of a tire.<br>
-      Magic numbers of particles for crystals: 15, 56, 209, 780. This means
-      that a crystal without defects matching well a square periodic box is
+
+      Magic numbers of particles for crystals: 4, 15, 56, 209, 780, then
+      doubled series and halved series (for even numbers). This means that a
+      crystal without defects matching well a square periodic box is
       possible. NPT Berendsen method is recommended.
     </li>
   </ul>
@@ -944,12 +987,13 @@
     <tr><td><font color="blue" face="helvetica">γ</font></td><td> Surface tension (applies to the slab geometry).</td></tr>
     <tr><td><font color="blue" face="helvetica">Etot</font></td><td> Total (potential + kinetic) energy of the whole simulation box.</td></tr>
     <tr><td><font color="blue" face="helvetica">Epot</font></td><td> Potential energy of the whole simulation box.</td></tr>
+    <tr><td><font color="blue" face="helvetica">p</font></td><td> |averaged momentum of the simulation box| (0 for momentum-preserving MD, order parameter of the Vicsek model).</td></tr>
     <tr><td><font color="blue" face="helvetica">H</font></td><td> Enthalpy.</td></tr>
     <tr><td><font color="blue" face="helvetica">Econserved</font></td><td> Conserved energy (MD: NVE, NVT Nosé–Hoover, MTK).</td></tr>
   </table>
 
   <a name="Sliders"></a>
-  <h3><font color="navy" face="sans"><i>Sliders panel</i></font></h3>
+  <h3><font color="navy" face="sans"><i>Parameters (Sliders panel)</i></font></h3>
   <p>Sliders can be moved by a mouse or (when the mouse pointer is over)
     finely by arrows.  The response of most sliders is not linear.
 
@@ -1081,18 +1125,22 @@
       in the File menu) with columns separated by Tabs.
 
     <li><b>cmd:</b><br>
-      Allows for entering data in the form of numbers instead of sliders.
-      The format is <br>
+      Allows for entering data in the form of numbers instead of sliders as
+      well as query.
+      The format to assign a NUMBER to a VARIABLE is:<br>
       &nbsp; &nbsp; <font face="helvetica">VARIABLE=NUMBER</font><br>
+      To print the value of VRIABLE:<br>
+      &nbsp; &nbsp; <font face="helvetica">VARIABLE</font><br>
       Type Enter after entering the data.
       For instance:<br>
       &nbsp; &nbsp; <font face="helvetica">rho=0.01</font><br>
       The values can be outside the respective slider range; the slider
-      will then show a minimum or maximum.  It is still checked whether
+      will then show a minimum or maximum.  A check is still made whether
       the variable entered is within some reasonable range, but not
       so strictly; the simulation may thus crash in some cases.
       Both decimal comma and dot are accepted (irrespective of the comma
-      toggle).  Available variables (input is not case-sensitive):
+      toggle); note that this does not apply for option -P.
+      Available variables (input is not case-sensitive):
       <table>
         <tr><th align=left>variable</th><th align=left>access</th><th align=left>explanation</th>
         <tr><td>a</td><td>(menu)</td><td>Parameter of the <a href="#DW">double well</a> and  <a href="#PD">penetrable disks</a> potentials.</td></tr>
@@ -1104,19 +1152,22 @@
         <tr><td>d</td><td>slider</td><td>MC displacement (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
         <tr><td>dV</td><td></td><td>MC change of ln(V)   (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
         <tr><td>dt, h</td><td></td><td>Time step; 0=automatic.</td></tr>
+        <tr><td>ff</td><td>menu</td><td>Force field (0=2DLJ,1=WCALJ,2=PD,3=DW).</td></tr>
         <tr><td>g</td><td>slider</td><td>Gravity.</td></tr>
         <tr><td>L</td><td></td><td>Box size (density ρ gets recalculated).</td></tr>
         <tr><td>measure</td><td>menu</td><td>Show and measure, integer from 0 in the order defined in the menu.</td></tr>
         <tr><td>method</td><td>menu</td><td>Method (MC/MD, thermostat..), integer from 0 in the order defined in the menu.</td></tr>
-        <tr><td>N</td><td>slider</td><td>Number of particles.</td></tr>
-        <tr><td>nbr</td><td>Atom-atom distance limit to define neighbors (for coloring)</td></tr>
+        <tr><td>N</td><td>slider</td><td>Number of particles; also option -N (deprecated).</td></tr>
+        <tr><td>nbr</td><td></td><td>Atom-atom distance limit to define neighbors (for coloring)</td></tr>
         <tr><td>P</td><td>slider</td><td>Barostat pressure.</td></tr>
         <tr><td>qtau, qτ&nbsp;</td><td></td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
-        <tr><td>rho, ρ</td><td>slider</td><td>Number density, ρ=N/V; L gets rcalculated.</td></tr>
+        <tr><td>rho, ρ</td><td>slider</td><td>Number density, ρ=N/V; L gets recalculated.</td></tr>
         <tr><td>show</td><td></td><td>The same as “measure”.</td></tr>
         <tr><td>stride</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
         <tr><td>T</td><td>slider</td><td>Thermostat temperature.</td></tr>
         <tr><td>tau, τ</td><td>slider</td><td>Thermostat time constant (MD).</td></tr>
+        <tr><td>trace</td><td></td><td>Trace length for draw mode Traces (default=64) and Art color mode.</td></tr>
+        <tr><td>v</td><td></td><td>Droplet--droplet velocity for Prepare system → Two droplets.</td>
         <tr><td>wall</td><td></td><td>Wall number density (smoothed to make the material of walls).</td>
       </table>
       All these variables can also be used in option -P at start.
@@ -1133,30 +1184,33 @@
           i.e., the distance where <i>u</i>(<i>r</i>)=0 (it
           is <i>r</i>=1).</li>
         <li> <b><u>S</u>mall</b> – 50 % of the collision radius</li>
-        <li> <b>Dot</b> – dot of 5 pixels, useful with Lines or Traces</li>
-        <li> <b>Pixel</b> – dot of one pixel</li>
+        <li> <b><u>D</u>ot</b> – dot of 5 pixels, useful with Lines or Traces</li>
+        <li> <b><u>P</u>ixel</b> – dot of one pixel</li>
       </ul>
     <li><b>draw mode:</b>
       <ul>
-        <li> <b>Movie</b> – Molecules in motion.</li>
-        <li> <b>Traces</b> – Trajectories are visible and gradually erased.</li>
-        <li> <b>Lines</b>  – Trajectories are visible and permanent.</li>
-        <li> <b>Nothing</b>  – Do not draw molecules nor box. Some speed is gained, especially for small systems.</li>
+        <li> <b><u>M</u>ovie</b> – Molecules in motion.</li>
+        <li> <b><u>T</u>races</b> – Trajectories are visible and gradually erased, the length of the trace can be controlled by variable trace from cmd:.</li>
+        <li> <b><u>L</u>ines</b>  – Trajectories are visible and permanent.</li>
+        <li> <b><u>N</u>othing</b>  – Do not draw molecules nor box. Some speed is gained, especially for small systems.</li>
       </ul>
     <li><b>color mode:</b>
       <ul>
-        <li> <b>Black</b> – Molecules are colored black (and this color is
+        <li> <b><u>B</u>lack</b> – Molecules are colored black (and this color is
           kept).</li>
-        <li> <b><i>O</i>ne</b> – Only one molecule is black, the remaining
+        <li> <b><u>O</u>ne</b> – Only one molecule is black, the remaining
           ones are orange. Useful to illustrate Brownian motion.</li>
-        <li> <b><i>y</i>-split</b> – Top half is colored red, bottom half
+        <li> <b><u>y</u>-split</b> – Top half is colored red, bottom half
           blue (and these colors are kept).  Useful to study diffusion.</li>
-        <li> <b>Neighbors</b> – Molecules are drawn in colors according
+        <li> <b><u>N</u>eighbors</b> – Molecules are drawn in colors according
           to the number of neighbors (molecules lying closer than 1.55:
           a tick will appear in the RDF graph to mark this distance).
           New colors are calculated every step (unless you select Keep).</li>
-        <li> <b>Random</b> – Colorize atoms randomly (and keep these colors).</li>
-        <li> <b>Keep</b> – Previously selected colors are kept.</li>
+        <li> <b><u>R</u>andom</b> – Colorize atoms randomly (and keep these colors).</li>
+        <li> <b><u>A</u>rt</b> – Cycle colors on the RGB wheel, best with draw
+          mode Lines. The speed of change can be controlled by variable trace
+          from cmd:</li>
+        <li> <b><u>K</u>eep</b> – Previously selected colors are kept.</li>
       </ul></li>
     <li><b>reset</b><br> Restore the default behavior (movie of black
       molecules).  The convergence profiles are reset, too (if shown).</li>
@@ -1219,10 +1273,11 @@
     <tr><td><b>-I<font color="magenta">init</font></b></td><td>(init=number) initial system (Gas=0, Diffusion=1, etc.)</td></tr>
     <tr><td><b>-N<font color="magenta">N</font></b></td><td>initial number of particles (legacy, also -PN=)</td></tr>
     <tr><td><b>-N<font color="magenta">PROTOCOL</font></b></td><td>protocol name without extension, cf. menu File</td></tr>
-    <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated. Executed after initialization (-I, -N)<br>Example: -Pwall=1,method=1</td></tr>
+    <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated, decimal separator=period. Executed after initialization (-I, -N)<br>Example: -Pwall=1,method=1</td></tr>
     <tr><td><b>-S<font color="magenta">speed</font></b></td><td>initial value of the simulation speed slider [default=3.5], affects the timer and (for speed>=1) the number of the skipped frames. Normal range = [-5,11.5], 11 or 11.5 means 10 and no delay</td></tr>
     <tr><td><b>-T<font color="magenta">factor</font></b></td><td>the timeout of the time is least factor times the simulation cycle duration [default=0.5]</td></tr>
     <tr><td><b>-U<font color="magenta">delay</font></b></td><td>additional delay in s, do not use [default=1e-5]</td></tr>
+    <tr><td><b>-Z<font color="magenta">seed</font></b></td><td>random number seed [default=0=time]</td></tr>
   </table>
 
   <a name="Bugs"></a>
@@ -1248,8 +1303,11 @@
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
   <ul>
+    <li>02/2025</li>Vicsek model of active matter added<br>
+      two droplets colored, velocity added (variable <i>v</i>)<br>
+      colormode Art (ranbow) added, variable trace added (for Traces and Art)
     <li>01/2025 Bug fixed: After change of N while MC, the number of degrees of freedom was not updated leading to wrong results<br>
-     MSD also for nonperiodic b.c.</li>
+      MSD also for nonperiodic b.c.</li>
     <li>12/2024 More potentials added: WCA, double well, penetrable disks/spheres<br>
       also velocities saved to .sim<br>
       MSD added<br>

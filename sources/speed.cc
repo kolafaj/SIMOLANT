@@ -15,7 +15,7 @@ static struct speed_s {
   double timerdelay; // timer delay (tcycle to be subtracted, if possible)
   double init=3.5; // initial value of the speed slider: see -S
   double MINTIMEOUT=0.2; // minimum timeout is MINTIMEOUT*tcycle: see -T
-  int stride; // every stride-th frame shown
+  int stride; // every stride-th frame shown: duplicated by slider 'speed'
 } speed;
 
 // calculate the stride and timer-delay from the speed slider

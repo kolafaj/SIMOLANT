@@ -1,12 +1,15 @@
 // The main simulation loop:
-// Simulate.draw() calculates MC/MD and shows molecules
-// Also, the timer control is here
-class Simulate : public Fl_Box {
+//   Simulate.draw() calculates MC/MD and shows molecules
+//   Also, the timer control is here
+
+class Simulate : public Fl_Box /////////////////////////////////////// Simulate
+{
+private:
   void get_data () {
     int i;
     static double lastT;
 
-    // get information from sliders; cf. cb_parms()
+    // get information from sliders; cf. cb_cmd()
     slider2speed(sliders.speed->value());
 
     //    printf("%d %d %g\n",time(NULL),stride,timerdelay);
@@ -23,38 +26,50 @@ class Simulate : public Fl_Box {
     if (bc==PERIODIC) gravity=0;
     else gravity=sliders.g->value();
 
+    //    fprintf(stderr,"sliders.c=%g ss.C2=%g\n",sliders.c->value(),ss.C2);
+    
+    if (method==VICSEK && sliders.c->value()!=ss.C2)
+      setss(ss.ff,sliders.c->value());
+
     if (mauto && method<=MCNPT) {
       if (mcstart<=0) {
+        MDreset(mauto);
         // initial MC finished, switching to MD
 
-        if (delayed_y_color) { // hack for DIFFUSION (color half AFTER MC)
+        if (lastcfg==DIFFUSION)
+          // color half AFTER MC
           y_split();
-          delayed_y_color=0; }
-
-        MDreset(mauto);
+        else if (lastcfg==TWODROPS) {
+          double dv=dropvel/(1.4142135623730952*2);
+          loop (i,0,N) {
+            if (i==N/2) dv=-dv;
+            v[i].x+=dv;
+            v[i].y+=dv; } }
+        lastcfg=SENTINEL;
         mauto=AUTO; /* = 0 */ }
       else
         mcstart-=speed.stride; }
 
     insdel((int)(pow(sliders.N->value(),NPOW)+0.5));
 
-    if (isNPT(method)) {
+    if (isNPT(method))
       P=sliders.P->value();
-      if (P<-1) P=-1;
-      if (P>100) P=100; }
     else {
       double oldL=L;
       L=rho2L(exp(sliders.rho->value()));
 
+      /* no longer bracket because of other potentials:
       if (L2rho(L)>MAXRHO) {
         rho2L(MAXRHO);
         sliders.rho->value(log(L2rho(L))); }
       if (L2rho(L)<MINRHO) {
         rho2L(MINRHO);
-        sliders.rho->value(log(L2rho(L))); }
+        sliders.rho->value(log(L2rho(L))); } */
+      
       Lh=L/2;
 
-      if (fabs(L/oldL-1)>1e-9) {
+      // rescale cfg if L has changed
+      if (fabs(L/oldL-1)>1e-11) {
         if (debug) fprintf(stderr,"L: %g→%g (bc=%d)\n",oldL,L,bc);
         loop (i,0,N) {
           r[i].x*=L/oldL;
@@ -203,6 +218,7 @@ class Simulate : public Fl_Box {
             sum.fwxL+=En.fwxL;
             sum.fwy+=En.fwy;
             sum.fwyL+=En.fwyL;
+            sum.momentum+=sqrt(Sqr(En.momentum.x)+Sqr(En.momentum.y));
             V=N/L2rho(L);
             sum.V+=V; /* some corrections for not PERIODIC */
             sum.U+=En.Upot;
@@ -261,7 +277,7 @@ class Simulate : public Fl_Box {
 
     norm();
 
-    if (drawmode->value()<3) {
+    if (run->value() && drawmode->value()<3) {
       // draw background
       enum colormode_e cmode=(colormode_e) colormode->value();
       static int boxsize=BOXSIZE; // size of the box in pix (will change)
@@ -275,6 +291,9 @@ class Simulate : public Fl_Box {
         case CM_NEIGHBORS:
           shownbrs=1;
           neighbors();
+          break;
+        case CM_ART:
+          art();
           break;
         case CM_YSPLIT:
           y_split();
@@ -295,8 +314,9 @@ class Simulate : public Fl_Box {
           break; }
 
       fl_color(FL_WHITE);
-      if (drawmode->value()==1)
-        loop (i,0,Sqr(boxsize)/64) fl_point(rnd()*boxsize+BORDER,rnd()*boxsize+MENUH+BORDER);
+      if (drawmode->value()==1) /* traces */
+        loop (i,0,Sqr(boxsize)/trace)
+          fl_point(rnd()*boxsize+BORDER,rnd()*boxsize+MENUH+BORDER);
 
       boxsize=w()<h() ? w()-2*BORDER : h()-2*BORDER;
       double scale=boxsize/L;
@@ -504,36 +524,43 @@ class Simulate : public Fl_Box {
 
     switch (bc) {
       case BOX:
-        buttons.wallx->show();
-        buttons.wallxL->show();
-        buttons.wally->show();
-        buttons.wallyL->show();
-        invertwalls->show();
+        buttons.wallx->show();  buttons.shift_left->hide();
+        buttons.wallxL->show(); buttons.shift_right->hide();
+        buttons.wally->show();  buttons.shift_up->hide();
+        buttons.wallyL->show(); buttons.shift_down->hide(); 
+        buttons.invertwalls->show();
         sliders.g->show();
+        sliders.c->hide();
         break;
       case SLIT:
-        buttons.wallx->hide();
-        buttons.wallxL->hide();
-        buttons.wally->show();
-        buttons.wallyL->show();
-        invertwalls->show();
+        buttons.wallx->hide();  buttons.shift_left->show(); 
+        buttons.wallxL->hide(); buttons.shift_right->show();
+        buttons.wally->show();  buttons.shift_up->hide();   
+        buttons.wallyL->show(); buttons.shift_down->hide(); 
+        buttons.invertwalls->show();
         sliders.g->show();
+        sliders.c->hide();
         break;
       case PERIODIC:
-        buttons.wallx->hide();
-        buttons.wallxL->hide();
-        buttons.wally->hide();
-        buttons.wallyL->hide();
-        invertwalls->hide();
+        buttons.wallx->hide();  buttons.shift_left->show(); 
+        buttons.wallxL->hide(); buttons.shift_right->show();
+        buttons.wally->hide();  buttons.shift_up->show();   
+        buttons.wallyL->hide(); buttons.shift_down->show(); 
+        buttons.invertwalls->hide();
         sliders.g->value(0);
         sliders.g->hide();
-        break;
-    }
+        if (method==VICSEK) sliders.c->show();
+        else sliders.c->hide();
+        break; }
+
     if (fabs(sliders.g->value())<0.0017) sliders.g->value(0);
+
+    // requires periodic b.c. but shown
 
     sim->redraw(); // → sim->draw() = all calculations and molecule drawing
     panel->infopanel->redraw();
     panel->resultpanel->redraw();
+    if (printcmd[0]) panel->buttonpanel->expertpanel->redraw(); /* because of printcmd */
     menu->redraw();
 
     files.record=buttons.record->value();
@@ -585,6 +612,7 @@ class Simulate : public Fl_Box {
       if (t<speed.MINTIMEOUT/speed.FPS) t=speed.MINTIMEOUT/speed.FPS;
       Fl::repeat_timeout(t, timer_callback, userdata); }
   }
+
 public:
   Simulate(int X,int Y,int W,int H) : Fl_Box(X,Y,W,H) {
     // I cannot find this method in the manual, but without

@@ -2,7 +2,7 @@
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
 // g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "01/2025"
+#define VERSION "02/2025"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>
@@ -29,7 +29,8 @@
 #define PI M_PI // needed in rndetc.c (#included from rndgeni.c)
 #include "rndgeni.c"
 
-#define PANELW 392       // right panel width (needs tinkering if changed)
+//#define PANELW 392       // right panel width (needs tinkering if changed)
+#define PANELW 480       // right panel width (needs tinkering if changed)
 #define MENUH 24         // top menu height (reasonable range 20..30)
 #define INFOPANELH 92    // height of the top panel with N=, ensemble, parameters
                          // given by font size - do not change
@@ -58,20 +59,22 @@
 #define LIGHTYELLOW 0xFFF08000 // for graphs vs. OI_GREEN
 
 // force field stuff moved here because of ss.rnbr used in panel
-#define RNBR 1.55 // range for neighbors
-#define CUTOFF 4 // default cutoff (-> ss.C2)
+#define RNBR 1.55 // range for neighbors, good for 2D LJ
+#define CUTOFF 4 // default cutoff (applies for 2D LJ)
 
+enum ff_e {LJ,WCA,PD,DW,NFF};
 /*
-  parameter ss.C1 (accessible as cutoff or cut from the data)
-  <-1      = double well (Penrose)
-  [1,2)    = 2DWCALJ: 4/r^8-4/r^4+1 for r<2^1/4, otherwise 0
-  2        = penetrable disks: a*(r^2-4)^2
-  >=MAXCUT = 2DLJ: 4/r^8-4/r^4, smoothly truncated to ss.C1
+   LJ  = 2D Lennard-Jones, 4/r^8-4/r^4, smoothly truncated
+   WCA = WCA version of 2D Lennard-Jones
+   PD  = Penetrable Disks a*(r^2-c^)^2
+   DW  = Double Well (Penrose)
+   NFF = undef, sentinel
 */
 
 struct ss_s {
-  double C1;        // smooth cutoff from C1 to C2
-  double C2=CUTOFF; // cutoff, see above, from cmd: and -P
+  enum ff_e ff=NFF; // force field
+  double C1;        // smooth cutoff from C1 to C2=c
+  double C2=CUTOFF; // cutoff=c, from cmd: and -P
   double C1q;       // C1^2
   double C2q;       // C2^2
   double A,A4;      // constants in the smoothed part
@@ -97,23 +100,33 @@ struct files_s {
   char info[1024]="";   // blocked measurement to record
 } files;
 
-// KM menu-redraw must be explicitly requested, so Simulate must know it
+// KM: menu-redraw must be explicitly requested, so Simulate must know it
 
 struct Sliders {
-  Fl_Fill_Slider *T,*tau,*d,*g,*rho,*P,*N, *speed,*block;
+  Fl_Fill_Slider *T, *tau,*d, *g,*c,  *rho,*P, *N,
+    *speed,*block;
 } sliders;
 
 struct Buttons {
-  Fl_Light_Button *wallx,*wally,*wallxL,*wallyL, *record,*csv,*comma;
-  Fl_Input *parms;
+  Fl_Light_Button *wallx,*wally,*wallxL,*wallyL;
+  Fl_Button *shift_up,*shift_down,*shift_left,*shift_right;
+  Fl_Button *invertwalls;
+  Fl_Light_Button *record,*csv,*comma;
+  Fl_Input *cmd;
 } buttons;
 
 Fl_Help_Dialog *help;
 Fl_Choice *molsize,*drawmode,*colormode,*incl;
-Fl_Button *resetview,*invertwalls,*setd;
+Fl_Button *resetgraph,*resetview,*setd;
 Fl_Light_Button *run; // run/hold
 
 void calculateB2(void); // needed in setss()
+
+// replacements for deprecated fl_ask
+static int fl_ask1(const char *fmt,const char *arg) /*************** fl_ask1 */
+{
+  return !fl_choice(fmt,"Yes","No",0,arg);
+} // fl_ask1()
 
 #include "speed.cc"
 #include "calculate.cc"
@@ -138,12 +151,13 @@ Fl_Menu_Item colormodeitems[]={
   { "&y-split" },
   { "&Neighbors" },
   { "&Random" },
+  { "&Art" },
   { "&Keep" },
   { 0 } };
 
 Fl_Menu_Item inclitems[]={
   { "&Nothing" },
-  { "&Convergence prof." },
+  { "&Convergence profile" },
   { "&Density profile" },
   { "&Both" },
   { 0 } };
@@ -154,20 +168,12 @@ Fl_Menu_Bar *menu;
 #include "simulate.cc"
 
 Fl_Menu_Item menuitems[] = {
-  { "&File", FL_ALT|'f', 0, 0, FL_SUBMENU },
+  { "&File ", FL_ALT|'f', 0, 0, FL_SUBMENU },
   { "&Protocol name...", 0, cb_protocol, 0, FL_MENU_DIVIDER },
   { "&Load configuration...", 0, cb_load },
   { "&Save configuration as...", 0, cb_save, 0, FL_MENU_DIVIDER },
   { "&Export force field", 0, cb_ff, 0, FL_MENU_DIVIDER },
   { "&Quit", 0, cb_exit },
-  { 0 },
-  { "F&orce field  ", FL_ALT|'f', 0, 0, FL_SUBMENU },
-  { "&Lennard-Jones c=4 (recommended)", 0, cb_LJ4},
-  { "&Repulsive (WCALJ, c=1.1892)", 0, cb_WCALJ},
-  { "&Penetrable disks (a=0.5,c=2)", 0, cb_PD},
-  { "&Ideal gas (a=0,c=2)", 0, cb_IG},
-  { "&Attractive penetrable disks (a=-0.5,c=2)", 0, cb_APD},
-  { "&Double well (a=1.25,b=1.4,c=-2)", 0, cb_DW},
   { 0 },
   { "&Prepare system  ", FL_ALT|'p', 0, 0, FL_SUBMENU },
   { "&Gas in box", 0, cb_gas },
@@ -176,6 +182,7 @@ Fl_Menu_Item menuitems[] = {
   { "Vapor-liquid e&quilibrium", 0, cb_vle },
   { "Horizontal &Slab", 0, cb_slab },
   { "&Nucleation", 0, cb_nucleation, 0, FL_MENU_DIVIDER },
+  { "&Periodic liquid", 0, cb_periodicliquid },
   { "&Liquid droplet", 0, cb_liquid },
   { "&Two droplets", 0, cb_twodrops },
   { "&Bubble (cavity)", 0, cb_cavity },
@@ -183,9 +190,22 @@ Fl_Menu_Item menuitems[] = {
   { "&Hexagonal crystal", 0, cb_crystal },
   { "+ &Edge defect", 0, cb_defect },
   { "+ &Vacancy", 0, cb_vacancy },
-  { "+ &Intersticial", 0, cb_intersticial },
+  { "+ &Intersticial", 0, cb_intersticial, 0, FL_MENU_DIVIDER },
+  { "Vicse&k active matter", 0, cb_vicsek },
+  { 0 },
+  { "F&orce field  ", FL_ALT|'f', 0, 0, FL_SUBMENU },
+  { "&Lennard-Jones c=4 (recommended)", 0, cb_LJ, 0, FL_MENU_DIVIDER},
+  { "&Repulsive (WCALJ, c=1.1892)", 0, cb_WCA},
+  { "&Penetrable disks (a=1,c=2)", 0, cb_PD},
+  { "&Ideal gas (a=0,c=2)", 0, cb_IG},
+  { "&Attractive penetrable disks (a=-1,c=2)", 0, cb_APD},
+  { "&Double well (a=1.25,b=1.4,c=-2)", 0, cb_DW },
   { 0 },
   { "&Method  ", FL_ALT|'m', 0, 0, FL_SUBMENU },
+  //  { "&Automatic (MC→MD/Bussi CSVR)        | NB:", 0, cb_AUTO, 0, FL_MENU_DIVIDER },
+  //  { "Monte Carlo NVE (&Creutz)                    | FF", 0, cb_MC_C },
+  //  { "Monte Carlo  NVT (&Metropolis)            | not", 0, cb_MC },
+  //  { "Monte Carlo   N&PT (Metropolis)           | changed", 0, cb_MC_NPT, 0, FL_MENU_DIVIDER },
   { "&Automatic (MC→MD/Bussi CSVR)", 0, cb_AUTO, 0, FL_MENU_DIVIDER },
   { "Monte Carlo NVE (&Creutz)", 0, cb_MC_C },
   { "Monte Carlo  NVT (&Metropolis)", 0, cb_MC },
@@ -198,7 +218,8 @@ Fl_Menu_Item menuitems[] = {
   { "Molecular Dynamics  NVT (&Langevin)", 0, cb_MD_L },
   { "Molecular Dynamics  NVT (B&ussi CSVR)", 0, cb_MD_BUSSI },
   { "Molecular Dynamics   NPT (Be&rendsen)", 0, cb_MD_MDNPT },
-  { "Molecular Dynamics   NPT (Mar&tyna et al.)", 0, cb_MD_MTK },
+  { "Molecular Dynamics   NPT (Mar&tyna et al.)", 0, cb_MD_MTK,0, FL_MENU_DIVIDER },
+  { "Vicse&k with NVT (Langevin)", 0, cb_VICSEK },
   { 0 },
   { "&Boundary conditions  ", FL_ALT|'b', 0, 0, FL_SUBMENU },
   { "&Box (soft walls)", 0, cb_box },
@@ -206,12 +227,13 @@ Fl_Menu_Item menuitems[] = {
   { "&Periodic", 0, cb_periodic },
   { 0 },
   { "&Show and measure  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
-  { "&Minimum", 0, cb_nomeas },
+  { "&Nothing (almost)", 0, cb_nomeas },
   { "&Quantities", 0, cb_quantities, 0, FL_MENU_DIVIDER },
   { "&Energy/enthalpy convergence profile", 0, cb_energy },
   { "&Temperature convergence profile", 0, cb_temperature },
   { "&Pressure convergence profile", 0, cb_pressure },
   { "&Volume convergence profile", 0, cb_volume },
+  { "&Momentum (e.g., for Vicsek)", 0, cb_momentum },
   { "&Integral of motion convergence profile", 0, cb_intmotion, 0, FL_MENU_DIVIDER },
   { "&Radial distribution function", 0, cb_rdf },
   { "Vertical densit&y profile", 0, cb_zprofile },
@@ -240,7 +262,7 @@ int main(int narg,char **arg) /**************************************** main */
   typedef char *charptr;
   char **newarg=new charptr[narg];
   const char *fn="",*ext;
-  int iarg,newiarg=0,fltkoptions=0;
+  int iarg,newiarg=0,fltkoptions=0,SEED=0;
   enum cfg_t init=GAS;
   char *optionP=NULL;
 
@@ -262,6 +284,7 @@ int main(int narg,char **arg) /**************************************** main */
         case 'S': speed.init=atof(arg[iarg]+2); break;
         case 'T': speed.MINTIMEOUT=atof(arg[iarg]+2); break;
         case 'U': speed.extradelay=(int)(atof(arg[iarg]+2)*1e6+0.5); break;
+        case 'Z': SEED=atoi(arg[iarg]+2); break;
         default: fprintf(stderr,"\
 SIMOLANT " VERSION " options (NO SPACE BEFORE NUMBER):\n\
   <FILE>     (NAME.sim) open sim-file on start (single argument only)\n\
@@ -280,6 +303,7 @@ SIMOLANT " VERSION " options (NO SPACE BEFORE NUMBER):\n\
              SPEED>=1: stride, SPEED<1: stride=1+add delays\n\
   -T<FACTOR> timer at least FACTOR of the sim. cycle duration [default=%g]\n\
   -U<DELAY>  delays in s added, use if the widgets are lazy [default=%g]\n\
+  -Z<SEED>   random number seed; default=0=time\n\
 In case of multiple instances of the same option, the last one applies.\n\
 FLTK options are in lowercase and with a space before a number, get them by:\n\
   simolant -x\n\
@@ -295,7 +319,7 @@ EXAMPLE:\n\
   if (N<1) N=1;
   if (N>=MAXN) N=MAXN;
 
-  rndinit(0,0); /* not C++ style :( */
+  rndinit(0,SEED);
   //  Fl::set_color(FL_BACKGROUND_COLOR,0x05558500);
 
   Fl_Double_Window win(BOXSIZE+2*BORDER+PANELW,
@@ -341,19 +365,23 @@ EXAMPLE:\n\
   if (ext && !strcmp(ext,".sim")) loadsim(fn); // name.sim => load it
   else initcfg(init); // no .ext=.sim => is a number
 
+  if (ss.ff==NFF) ss.ff=LJ; // this is because INITVICSEK sets ss.ff=PD
+  setss(ss.ff,CUTOFF); // if -P contains T, calculateB2 must have parameters set
+
   if (optionP) {
+    // reading option -P: decimal separator=period, command separator=comma
     char *c,*e;
 
     optionP=strdup(optionP);
     for (c=optionP; ; ) {
       e=strchr(c,',');
-      read_parm(c);
+      parse_cmd(c);
       if (e) c=e+1;
       else break; }
 
     free(optionP); }
 
-  setss(CUTOFF); // not clear why it must be here
+  setss(ss.ff,ss.C2); // in case parameters have changed
 
   return Fl::run();
 }

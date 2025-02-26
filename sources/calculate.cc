@@ -1,8 +1,11 @@
-// Simulation code
-// This core of this code was originally written in DOS Pascal+Turbo graphics,
-// then rewritten to C (with Turbo graphics),
-// and then Turbo-graphics was emulated by X11.
-// This version includes graphics rewritten to FLTK.
+/*
+   Simulation code.
+   This core of this code originates in old DOS Pascal+Turbo graphics,
+   then it was rewritten to C (with Turbo C graphics),
+   then Turbo-graphics was emulated by X11.
+   This version includes graphics rewritten to C++/FLTK, but the code is still
+   rather C than C++ in design.
+*/
 
 #define MAXN 2000     // max # of atoms: static arrays used
 #define MINRHO 0.03   // NUCLEATION: 0.04
@@ -19,6 +22,9 @@
 
 #define MING -0.2 // minimum gravity
 #define MAXG 0.2 // maximum gravity
+
+#define MINC 1.0 // minimum cutoff
+#define MAXC 100.0 // maximum cutoff
 
 #define DSCALE 7 // MC displacement d (in units of Lh) d=L/2*exp(min MC displacement d), in the unit of L/2, for log-based slider
 
@@ -46,6 +52,7 @@ double L=20,Lh; /* box size, Lh=L/2 */
 double T=3; /* temperature as NVT parameter */
 double P=1; /* pressure as NPT parameter */
 double qtau=5; /* tauP/tau, for Berendsen and MTK barostat */
+double dropvel=1; /* velocity for function TWODROPS */
 double Tk; /* Tk=kinetic T (MD) or demon T (Creutz MC) */
 double bag; /* Creutz daemon bag: static */
 double d=0.5; /* MC displacement, in Lh=L/2 */
@@ -57,21 +64,22 @@ vector rpbc[MAXN]; /* configuration, followed periodic b.c., divided by L */
 int MSDskip; /* skip MSD calculation (set after error cannot follow periodic b.c.) */
 vector vlast[MAXN]; /* velocity(t-3*dt/2) for Nose-Hoover + TRVP */
 vector vllast[MAXN]; /* velocity(t-5*dt/2) for Nose-Hoover + TRVP */
+double wnbrs[MAXN]; /* for SWARM: weight of neighbors */
 double xi,xiv,xivlast,xivllast,xivpred; /* Nose-Hoover variable, xivlast=xiv(t-3*dt/2), xivllast=xiv(t-5*dt/2) */
 double lambdav,lambdavlast,lambdavllast,lambdavpred; /* MTK ln(L) */
 double Econserved; /* total energy incl. extended degrees of freedom */
 int justreset=1; /* reset scaling of energy convergence profile */
 int debug=0; /* verbose debug mode */
 int circlemethod=2; /* 0=fl_pie  1=fl_circle  2=custom of fl_line */
-int iblock,block; // stride moved to speed.stride
-int delayed_y_color=0; // hack for DIFFUSION (color half AFTER MC)
+int iblock,block; // also slider (stride moved to speed.stride)
 int nimg; // for cutoff>Lh: number of images
+double trace=64; // length for draw mode Traces
 
 // method: thermostat/barostat/MC/MD
 // the order is the same as in the menu; AUTO is not used (directly)
-enum method_e                {AUTO,       CREUTZ,         METROPOLIS,         MCNPT,              NVE,     BERENDSEN,         NOSE_HOOVER,         ANDERSEN,         MAXWELL,              LANGEVIN,         BUSSI,          MDNPT,             MTK, NTH}
+enum method_e                {AUTO,       CREUTZ,         METROPOLIS,         MCNPT,              NVE,     BERENDSEN,         NOSE_HOOVER,         ANDERSEN,         MAXWELL,              LANGEVIN,         BUSSI,          MDNPT,             MTK,                   VICSEK,NTH}
   method=BUSSI,mauto;
-const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al." };
+const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
 int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selected MD starts
 #if 1
 #define NOERROR 0
@@ -80,13 +88,13 @@ int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selecte
 #define MSDFAILED 3
 int errmessage=NOERROR;
 #else
-// this line issues ERROR "expected identifier before {" on Winfows:
+// this line issues ERROR "expected identifier before {" on Windows:
 enum errmessage_e {NOERROR,MDFAILED,NPTFAILED,MSDFAILED} errmessage=NOERROR;
 #endif
 
 int wasMDerror; // previously MDFAILED - to break "Switching temporarily to Monte Carlo…" loop
 
-enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_KEEP};
+enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_ART,CM_KEEP};
 
 #define isMC(method) (method>=CREUTZ && method<=MCNPT)
 #define isMD(method) (method>=NVE)
@@ -99,8 +107,9 @@ typedef double (*function_t)(double r); // for potential() and forces()
 // NB: order important - >= used
 enum cfg_t {GAS,DIFFUSION,GRAVITY,
             VLE,SLAB,NUCLEATION,
-            LIQUID,TWODROPS,CAVITY,CAPILLARY,
+            PERIODICLIQUID,LIQUIDDROP,TWODROPS,CAVITY,CAPILLARY,
             CRYSTAL,DEFECT,VACANCY,INTERSTITIAL,
+            INITVICSEK,
             SENTINEL} cfg=GAS; /* initial cfg. */
 
 int accepted=0,Vaccepted=0; /* # of accepted MC moves */
@@ -120,13 +129,14 @@ struct En_s {
   double fwx,fwxL,fwy,fwyL; /* direct pressure on walls */
   double Upot; // potential energy
   double H; // enthalpy
+  vector momentum; // averaged total momentum (velocity), good for Vicsek
   vector MSD; // mean square displacement
   int Nf; // see degrees_of_freedom()
-} En; // the same name as in MACSIMUS
+} En; // similar as in MACSIMUS
 
 /* the last 2 enum types must be RPROFILE,CPROFILE */
-enum measure_t { NONE,QUANTITIES,ENERGY,TEMPERATURE,PRESSURE,VOLUME,INTMOTION,RDF,YPROFILE,RPROFILE,CPROFILE,NMEASURE } measure;
-const char *measureinfo[NMEASURE]={"None","Quantities","Energy","Temperature","Pressure","Volume","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
+enum measure_t { NONE,QUANTITIES,ENERGY,TEMPERATURE,PRESSURE,VOLUME,MOMENTUM,INTMOTION,RDF,YPROFILE,RPROFILE,CPROFILE,NMEASURE } measure;
+const char *measureinfo[NMEASURE]={"None","Quantities","Energy","Temperature","Pressure","Volume","Momentum","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
 
 /* for mean values over blocks - sums accumulated using addM() */
 struct sum_s {
@@ -135,6 +145,7 @@ struct sum_s {
   double fwx,fwxL,fwy,fwyL; // forces on walls
   double accr,Vaccr; // acceptance ratios in MC
   double MSD; // MSD from r0, averaged over N
+  double momentum; // from |En.momentum| averaged total momentum (velocity)
 } sum; // sums accumulated
 
 /* for variances of selected quantities */
@@ -170,7 +181,7 @@ void degrees_of_freedom() /****************************** degrees_of_freedom */
   /* total number of mechanical degrees of fredom not counting conserved momenta */
   En.Nf=2*N;
   En.q.x=En.q.y=1;
-  if (!isMC(method) && method!=ANDERSEN && method!=LANGEVIN && method!=MAXWELL)
+  if (!isMC(method) && method!=ANDERSEN && method!=LANGEVIN && method!=VICSEK && method!=MAXWELL)
     switch (bc) {
       case BOX: break;
       case SLIT:
@@ -270,8 +281,7 @@ double ni(double dx) /*************************************************** ni */
 // WARNING: some constants are hardwired and not derived from HISTGRID,HISTMAX
 // e.g., axis labeling 0 L/4 L/2 L etc.
 #define HISTGRID 50 // 50 histogram bins per unity for RDF
-//#define HISTMAX 276 // 5.5*HISTGRID+1, should be even for profiles
-#define HISTMAX ((PANELW/2)*2-48) // PANELW=329 => HISTMAX=280
+#define HISTMAX ((PANELW/2)*2-51) // should be even for profiles
 unsigned hist[HISTMAX+1];
 double etot[HISTMAX];
 int itot=HISTMAX+2; /* wait 2, then initialize; then itot=0..HISTMAX-1 */
@@ -300,7 +310,7 @@ void put_data() /************************************************** put_data */
   buttons.wallyL->value(!!(walls&8));
 }
 
-int molcol[MAXN];
+unsigned molcol[MAXN];
 
 void molblack() /************************************************** molblack */
 {
@@ -340,7 +350,7 @@ void randomcolors() /****************************************** randomcolors */
 {
   int i;
 
-  loop (i,0,N) molcol[i]=256*irnd(0x1000000);
+  loop (i,0,N) molcol[i]=irnd(0x1000000)<<8;
 }
 
 void dtadjset() /************************************************** dtadjset */
@@ -385,11 +395,16 @@ void MCreset(method_e th) /***************************************** MDreset */
   if (wasMDerror) mauto=AUTO; // kill the "switching temporarily to Monte Carlo…" loop
 }
 
+enum cfg_t lastcfg; // for DIFFUSION (color half AFTER MC) and TWODROPS
+
 void initcfg(enum cfg_t cfg) /************************************** initcfg */
 {
   int i,j,k,ii;
   double ff;
   vector rt;
+  //static int first=1;
+
+  lastcfg=cfg;
 
   mauto=BUSSI;
   mcstart=40;
@@ -411,7 +426,6 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   switch (cfg) {
 
     case DIFFUSION:
-      delayed_y_color++;
       molblack();
       colormode->value(CM_BLACK); // black for now
     case GAS:
@@ -481,7 +495,20 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       T=0.6;
       break;
 
-    case LIQUID:
+    case PERIODICLIQUID:
+      /* initial random configuration, low density */
+      bc=PERIODIC;
+      measure=RDF;
+      L=rho2L(0.8); Lh=L/2;
+      loop (i,0,N) {
+        r[i].x=rnd()*L; r[i].y=rnd()*L; }
+      T=0.7;
+      P=0.5;
+      colormode->value(CM_NEIGHBORS);
+      mauto=MDNPT;
+      break;
+
+    case LIQUIDDROP:
       /* big droplet */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
@@ -499,12 +526,18 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
       measure=TEMPERATURE;
-      loop (i,0,N) {
-        do {
-          r[i].x=rnd()*L; r[i].y=rnd()*L; }
-        while (Sqr(r[i].x-Lh/2)+Sqr(r[i].y-Lh/2)>N/4 && Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>N/4); }
-      T=0.55;
-      mcstart=50;
+      method=NVE;
+      loop (i,0,N/2) {
+        do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
+        while (Sqr(r[i].x-Lh/2)+Sqr(r[i].y-Lh/2)>N/4);
+        molcol[i]=OI_RED; }
+      loop (i,N/2,N) {
+        do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
+        while (Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>N/4);
+        molcol[i]=OI_BLUE; }
+
+      colormode->value(CM_KEEP);
+      T=0.5;
       break;
 
     case CAPILLARY:
@@ -519,7 +552,25 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       measure=YPROFILE;
       break;
 
-    default: // crystals
+    case INITVICSEK:
+      // Vicsek implemented if (ss.vicsek) only in periodic+Langevin:
+      bc=PERIODIC;
+      //  method=VICSEK; // shows [MD/NVT/VICSEK] instead of MD/NVT/VICSEK - why?
+      mauto=VICSEK;
+      measure=MOMENTUM;
+      mcstart=10;
+      L=rho2L(0.03); Lh=L/2;
+      loop (i,0,N) {
+        r[i].x=rnd()*L; r[i].y=rnd()*L;
+        // random velocities, T=1
+        v[i].x=rndgauss(); v[i].y=rndgauss(); }
+      // slightly repulsive potential for Vicsek:
+      ss.a=0.2; setss(PD,CUTOFF);
+      T=1;
+      drawmode->value(1); // traces
+      break;
+
+    default: // crystals: CRYSTAL,DEFECT,VACANCY,INTERSTITIAL
       L=rho2L(0.25); Lh=L/2;
       k=sqrt(N/3)+1;
       do {
@@ -560,15 +611,17 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
           ff=sqrt((r[i].x-Lh)/k)*0.43;
           if (r[i].y>Lh) { r[i].x+=ff; r[i].y+=ff; }
           else { r[i].x-=ff; r[i].y+=ff; } }
+      colormode->value(CM_NEIGHBORS);
       break;
   }
+
+  if (cfg!=INITVICSEK) setss(LJ,CUTOFF);
 
   if (debug) {
     printf("# initial cfg: N=%d cfg=%d\n",N,cfg);
     loop (i,0,N) printf("%g %g XY\n",r[i].x,r[i].y); }
 
   dtadjset();
-  if (cfg>=CRYSTAL) colormode->value(CM_NEIGHBORS);
   put_data();
 }
 
@@ -587,7 +640,9 @@ void insdel(int newN) /********************************************** insdel */
       if (bc==BOX) r[i].x=0.8+rnd()*(L-1.6);
       else r[i].x=rnd()*L;
       if (bc==BOX || bc==SLIT) r[i].y=0.8+rnd()*(L-1.6);
-      else r[i].y=rnd()*L; }
+      else r[i].y=rnd()*L;
+      randomv(i,sqrt(T));
+      a[i].x=a[i].y=0; }
   else if (newN<N) // delete
     for (i=N; i>newN; i--) {
       j=(int)(i*rnd());
@@ -730,8 +785,8 @@ timing (all times are in s):\n\
 
 void MDstep(void) /************************************************** MDstep */
 {
-  vector momentum,ri,rt;
-  double ff,maxvv;
+  vector ri,rt;
+  double ff,maxvv,rr;
   double Vf;
   int i,j,k,l;
 
@@ -740,6 +795,8 @@ void MDstep(void) /************************************************** MDstep */
 
   dtadjset();
   dt=dtadj;
+
+  if (method==VICSEK) bc=PERIODIC; // quite ugly...
 
   /* calculate forces (accelerations) caused by walls and gravity */
   loop (i,0,N)
@@ -752,6 +809,10 @@ void MDstep(void) /************************************************** MDstep */
       else a[i].x=0; }
 
   if (method==MTK) En.P.x=En.P.y=0; // pressure tensor every step for MTK
+
+  if (method==VICSEK) {
+    memset(vllast,0,sizeof(vllast[0])*N);
+    memset(wnbrs,0,sizeof(wnbrs[0])*N); }
 
   /* calculate atom-atom pair forces; for MTK also the virial of force */
   switch (bc) {
@@ -770,6 +831,7 @@ void MDstep(void) /************************************************** MDstep */
           a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
           a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
       break;
+
     case SLIT:
       if (ss.C2<Lh)
         loop (i,0,N) {
@@ -801,6 +863,7 @@ void MDstep(void) /************************************************** MDstep */
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
                 a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
       break;
+
     case PERIODIC:
       if (ss.C2<Lh)
         loop (i,0,N) {
@@ -812,12 +875,21 @@ void MDstep(void) /************************************************** MDstep */
             rt.y=ri.y-r[j].y;
             if (rt.y>Lh) rt.y=rt.y-L;
             if (rt.y<-Lh) rt.y=rt.y+L;
-            ff=f(Sqr(rt.x)+Sqr(rt.y));
-            if (method==MTK) {
-              En.P.x+=Sqr(rt.x)*ff;
-              En.P.y+=Sqr(rt.y)*ff; }
-            a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
-            a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
+            rr=Sqr(rt.x)+Sqr(rt.y);
+            if ( (ff=f(rr)) ) {
+              if (method==MTK) {
+                En.P.x+=Sqr(rt.x)*ff;
+                En.P.y+=Sqr(rt.y)*ff; }
+              if (method==VICSEK) {
+                rr=ss.C2q-rr;
+                vllast[i].x+=rr*v[j].x;
+                vllast[i].y+=rr*v[j].y;
+                vllast[j].x+=rr*v[i].x;
+                vllast[j].y+=rr*v[i].y;
+                wnbrs[i]+=rr;
+                wnbrs[j]+=rr; }
+              a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
+              a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } }
       else
         loop (i,0,N) {
           ri=r[i];
@@ -831,12 +903,20 @@ void MDstep(void) /************************************************** MDstep */
                   En.P.x+=Sqr(rt.x)*ff;
                   En.P.y+=Sqr(rt.y)*ff; }
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
-                a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } }}
-  }
+                a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } } } }
 
-  if (method==LANGEVIN) {
+  if (method==LANGEVIN || method==VICSEK) {
     /* random force by the fluctuation-dissipation theorem */
     double vv=sqrt(T/(tau*dt));
+
+#define MIXPARM ss.C2q
+    if (method==VICSEK) loop (i,0,N) {
+      v[i].x=(vllast[i].x+v[i].x*MIXPARM)/(wnbrs[i]+MIXPARM);
+      v[i].y=(vllast[i].y+v[i].y*MIXPARM)/(wnbrs[i]+MIXPARM);
+      double rr=sqrt(T/(Sqr(v[i].x)+Sqr(v[i].y)));
+      v[i].x*=rr;
+      v[i].y*=rr; }
+
     loop (i,0,N) { a[i].x+=vv*rndgauss(); a[i].y+=vv*rndgauss(); } }
 
   if (method==NOSE_HOOVER || method==MTK) {
@@ -871,13 +951,15 @@ void MDstep(void) /************************************************** MDstep */
       vllast[i]=vlast[i]; vlast[i]=v[i]; } }
 
   /* leap-frog integrator and kinetic energy */
-  En.Ek.x=En.Ek.y=0;
+  En.Ek=zero;
+  En.momentum=zero;
   maxvv=0;
-  momentum.x=momentum.y=0;
 
   loop (i,0,N) {
     /* crash integrator test: this form detects NaN, too */
-    if (!(Sqr(a[i].x)+Sqr(a[i].y)<1e7)) {
+    //    fprintf(stderr,"%g %g\n",a[i].x,a[i].y);
+
+    if (Sqr(a[i].x)+Sqr(a[i].y)>1e7) {
       if (debug)
         fprintf(stderr,"MDerror: i=%d r=[%g %g] v=[%g %g] a=[%g %g]\n",i,r[i].x,r[i].y,v[i].x,v[i].y,a[i].x,a[i].y);
       MDerror();
@@ -888,8 +970,8 @@ void MDstep(void) /************************************************** MDstep */
     En.Ek.y+=Sqr(v[i].y);
 
     /* leap-frog, momentum */
-    momentum.x+=v[i].x+=dt*a[i].x;
-    momentum.y+=v[i].y+=dt*a[i].y;
+    En.momentum.x+=v[i].x+=dt*a[i].x;
+    En.momentum.y+=v[i].y+=dt*a[i].y;
 
     /* leap-frog Ekin components at t+dt/2 */
     En.Ek.x+=Sqr(v[i].x);
@@ -903,11 +985,14 @@ void MDstep(void) /************************************************** MDstep */
     //    if (r[i].x<0 || r[i].x>L || r[i].y<0 || r[i].y>L ) fprintf(stderr,"%8.4f %8.4f\n",r[i].x/L, r[i].y/L);
   } /*N*/
 
+  En.momentum.x/=N; En.momentum.y/=N; // = averaged velocity, also for Vicsek
   // remove total momentum - does not have to be done every step...
-  if ((method>=NVE && method<=NOSE_HOOVER) || method>=BUSSI) {
-    momentum.x/=N; momentum.y/=N;
-    if (bc==PERIODIC) loop (i,0,N) { v[i].x-=momentum.x; v[i].y-=momentum.y; }
-    else if (bc==SLIT) loop (i,0,N) { v[i].x-=momentum.x; } }
+  if (method>=NVE && method<=NOSE_HOOVER || method>=BUSSI && method<+MTK) {
+    if (bc==PERIODIC) loop (i,0,N) {
+        v[i].x-=En.momentum.x;
+        v[i].y-=En.momentum.y; }
+    else if (bc==SLIT) loop (i,0,N) {
+        v[i].x-=En.momentum.x; } }
 
   if (En.Nf<=0) {
     fl_alert("\
@@ -988,6 +1073,7 @@ Switching to Metropolis Monte Carlo...");
       break;
 
     case LANGEVIN:
+    case VICSEK:
       /* friction part by the fluctuation-dissipation theorem
          - the simplest version giving the best Epot */
       ff=1-0.5*dt/tau;
@@ -1052,8 +1138,10 @@ void MCsweep(void) /************************************************ MCsweep */
 
   Tk=0; /* Creutz temperature */
 
+
   loop (i,0,N) {
     if (d>1) d=1;
+
 
     /* trial move of atom i */
 
@@ -1146,6 +1234,7 @@ void MCsweep(void) /************************************************ MCsweep */
 
     Tk+=bag;
   } /*N*/
+
   Tk/=N;
 
   if (isdauto) sliders.d->value(log(d)/DSCALE);
@@ -1240,9 +1329,24 @@ void MCsweep(void) /************************************************ MCsweep */
   t+=1;
 } // MCsweep()
 
+void art(void) /******************************************************** art */
+{
+  double phase=t/trace;
+  int i;
+
+  if (isMD(method)) phase/=dt;
+  
+  loop (i,0,N) {
+    phase=fmod(phase+2*PI*i/N,2*PI);
+
+    molcol[i]=((unsigned)(cos(phase)*127.9999+128)<<24)
+            | ((unsigned)(cos(phase+2*PI/3)*127.9999+128)<<16)
+            | ((unsigned)(cos(phase+4*PI/3)*127.9999+128)<<8); }
+}
+
 int shownbrs;
 
-void neighbors() /************************************************ neighbors */
+void neighbors(void) /******************************************** neighbors */
 {
   int i,j;
   int nbr;
@@ -1329,7 +1433,7 @@ void MSD(vector *MSDp) /************************************************ MSD */
   int i;
 
   /* enum bctype {BOX,SLIT,PERIODIC}
-     NB: because of compatibility with NPT, 
+     NB: because of compatibility with NPT,
      the b.c. calculations are done with the box rescaled to [1,1] */
 
   if (bc>=SLIT)
