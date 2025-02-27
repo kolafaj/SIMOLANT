@@ -1052,7 +1052,7 @@ public:
 
     // ParameterPanel, WallPanel not redrawn ⇒ pointers not needed
     new ParameterPanel(X+4,Y+20,W/2-16,H*3/5-20,"Parameters");
-    new WallPanel(X+W/2+4,Y+20,W/2-12,H/4-9,"Walls");
+    new WallPanel(X+W/2+4,Y+20,W/2-12,H/4-9,"Walls + shifts");
     // expertpanel contains previous cmd: to be redrawn
     expertpanel=new ExpertPanel(X+W/2+4,Y+H/4+36,W/2-12,H/4+33,"Expert");
 

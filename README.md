@@ -15,6 +15,7 @@ Molecular simulation in 2D
   * Crystal defects in motion
   * Gas in a gravitational field
   * Impact of a solid body (crystal) to a wall
+  * Vicsek model of a flock of birds
 
 * _In a university course of molecular simulations:_ Basic concepts of statistical thermodynamics and molecular simulations can be elucidated:
 
@@ -31,9 +32,18 @@ Molecular simulation in 2D
 
 * _Student work_
 
+  * Isotherms, phase diagram
   * [Verification of the Clausius-Clapeyron equation](http://old.vscht.cz/fch/en/tools/kolafa/tul/simenw1.pdf)
   * [Pressure outside a droplet/inside cavity (Kelvin equation)](http://old.vscht.cz/fch/en/tools/kolafa/simenw3.pdf)
   * Surface / interfacial tension, contact angle
+  * Second virial coefficient and the equation of state
+  * Mean square displacement
+  * Diffusivity, Arrhenius plot, activation energy
+  * Soft penetrable disks
+  * Coalescence of droplets
+  * Double-minimum potential which might give the Penrose quasicrystal
+  * Phase transition in the Vicsek model
+  
 
 ## Licence
 
@@ -51,30 +61,13 @@ _In Windows, do not run directly from "folder simolant-win32"!_
 * simolant-amd64.zip - for linux (64 bit)
 * simolant-win32.zip - for Microsoft Windows (32 bit)
 
-## New since the previously posted version
-
-* MSD also for not periodic b.c.
-* After change of N while MC, the number of degrees of freedom was not updated leading to wrong results
-* More potentials added: WCA, double well, penetrable disks/spheres
-* Also velocities saved to .sim
-* MSD added + bugs fixed
-* Two droplets added
-* Cutoff smoothing bug fixed
-* Number of degrees of freedom for MTK was fixed; now lim<sub>ρ→0</sub>Z=1 also for small N
-* Nonstochastic NVT MD kinetic pressure corection added so that now lim<sub>ρ→0</sub>Z=1 also for small N
-* Outputs cleaned; particularly for Z</li>
-* Missing header after change of protocol name fixed
-* g↔P swapped (was wrong in .txt protocol)
-* NPT volume measure μ=const replaced by μ=1/V in MC NPT, to be compatible with MTK
-
 ## To do list
 
-* Warn on parameter check during recording
+* Warn on parameter change during recording
 * Improve pop up warnings
 * Linked-cell list to speed up
-* Include lattice models?
+* Include lattice models
 
 ## Bugs/features
 
 * Gravity not part of the virial (should it be?)
-* Recording: The measurement number is advanced even if save is cancelled

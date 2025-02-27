@@ -39,7 +39,7 @@
       <ul>
         <li><a href="#Symbols">Symbols</a></li>
         <li><a href="#Variables">Variables</a></li>
-        <li><a href="#Sliders">Parameters (Sliders panel)</a></li>
+        <li><a href="#Sliders">Parameters (panel of sliders)</a></li>
         <li><a href="#Walls">Walls</a></li>
         <li><a href="#Expert">Expert</a></li>
         <li><a href="#Switches">Switches</a></li>
@@ -118,9 +118,15 @@
       <ul>
         <li>Isotherms and the critical point</li>
         <li>Verification of the Clausius-Clapeyron equation</li>
-        <li>Line tension ("surface tension" in 2D)</li>
+        <li>Line tension ("surface tension" in 2D), contact angle</li>
         <li>Dependence of the line tension on temperature and the total line tension (surface enthalpy)</li>
-        <li>Kelvin equation</li>
+        <li>Pressure outside a droplet/inside cavity (Kelvin equation)</li>
+        <li>Surface / interfacial tension, contact angle</li>
+        <li>Mean square displacement</li>
+        <li>Diffusivity, Arrhenius plot, activation energy</li>
+        <li>Coalescence of droplets</li>
+        <li>Can a double-minimum potential give the Penrose quasicrystal?</li>
+        <li>Phase transition in the Vicsek model</li>
         <li>More under preparation...</li>
       </ul>
     </li>
@@ -202,20 +208,20 @@
 
   <p> The two-dimensional model used by SIMOLANT is easier to show and
     simulate than a realistic three-dimensional model of, e.g., water.
-    Nevertheless, basic concepts shown are <i>qualitatively</i> the same as
-    in three dimensions.  The only notable exception is a possibly
-    different nature of the freezing transition.  If water freezes, a
-    nucleus of ice appears and then it grows – there is an interface
-    between both phases.  This is similar to vapor condensation in both 2D
-    and 3D.  However, when some 2D systems are cooled, there is no
-    interface between frozen and liquid phases (Costerlitz-Thouless
-    continuum transition).  Instead, hexagonally ordered areas grow
-    anywhere in the system.  At the freezing point the size of these areas
-    diverges to infinity, i.e., (in equilibrium) we obtain a single crystal
-    structure spanning the whole system.  Other 2D systems freeze as in 3D
-    (i.e., via the first order phase transition), but the nucleation
-    phenomena are not so apparent; this is likely the case of 2D hard
-    disks.  The type of freezing of our 2D system is not known.</p>
+    Nevertheless, basic concepts shown are <i>qualitatively</i> the same as in
+    three dimensions.  The only notable exception is a possibly different
+    nature (universality class) of the freezing transition.  If water freezes,
+    a nucleus of ice appears and then it grows – there is an interface between
+    both phases.  This is first-order phase transition, other example is
+    vapor condensation in both 2D and 3D.  However, when some 2D systems are
+    cooled, there is no interface between ordered (frozen) and disordered
+    (liquid) phases (Kosterlitz–Thouless continuum transition).  Instead,
+    hexagonally ordered areas grow anywhere in the system.  At the freezing
+    point the size of these areas diverges to infinity, i.e., in equilibrium
+    we obtain a single crystal structure spanning the whole system.  Other 2D
+    systems freeze as in 3D (i.e., via the first order phase transition), but
+    the nucleation phenomena are not so apparent; this is likely the case of
+    2D hard disks.  The type of freezing of our 2D system is not known.</p>
 
   <p> The model is more appropriate for 2D systems as surfactants
     floating on a surface of water.  Such molecules form 2D gas, 2D
@@ -226,52 +232,54 @@
 
   <p> The potential decreases to zero more slowly than London forces in
     3D; therefore, gas at moderate densities is less ideal than in 3D –
-    the compressibility factor Z deviates from 1, especially al low
+    the compressibility factor Z deviates from 1, especially at low
     temperatures. </p>
 
   <a name="Potentials"></a>
   <h3><font color="navy" face="sans"><i>More interaction potentials</i></font></h3>
 
   <p> In addition to the standard Lennard-Jones-like potential, several more
-  or less weird potentials are supported:</p>
+    or less weird potentials are supported:</p>
 
   <ul>
     <li><a name="WCA"></a><b>WCA interaction potential</b><br>
       The WCA potential is the Lennard-Jones (here 2D version) potential
       truncated at the minimum and shifted:<br><br>
-      
+
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 4/<i>r</i>⁸ − 4/<i>r</i>⁴ +1 &nbsp; for <i>r</i> &lt; <i>c</i><br>
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
-      
+
       where <i>c</i> = 2^(1/4).</li>
 
     <li><a name="PD"></a><b>Penetrable disks and ideal gas</b><br>
-      The PD (penetrable spheres, here penetrable disks) is a simple model of
+      Penetrable spheres, here penetrable disks, is a simple model of
       a polymer coil in a good solvent.<br><br>
-      
+
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−c²)²/c² &nbsp; &nbsp; for <i>r</i> &lt; 2<br>
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; 2<br><br>
-      
-      Normally, <i>a</i>=1/2.  From cmd:, any value can be set:<br>
+
+      The default is <i>a</i>=1, <i>c</i>=2.  From cmd:, any value can be set:<br>
       &nbsp; &nbsp; <i>a</i>&gt;0 &nbsp; &nbsp; repulsive penetrable spheres (disks),<br>
       &nbsp; &nbsp; <i>a</i>=0    &nbsp; &nbsp; ideal gas (not too much fun with it),<br>
       &nbsp; &nbsp; <i>a</i>&lt;0 &nbsp; &nbsp; attractive penetrable spheres (disks) are
-      thermodynamically singular (the thermodynamic limit diverges).</li>
+        thermodynamically singular (the thermodynamic limit diverges).</li>
 
     <li>
       <a name="DW"></a><b>Double wall</b><br> The double wall potential with a
       good choice of parameters might give a quasicrystal of 2D Penrose
-      tesselation:<br><br>
-      
+      tessellation:<br><br>
+
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = const (1−<i>r</i>²) (<i>a</i>²−<i>r</i>²) (<i>b</i>²−<i>r</i>²) (<i>c</i>²/<i>r</i>²−1)² &nbsp;  for <i>r</i> &lt; <i>c</i><br>
       &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
-      
+
       where, for the sake of temperature scale purpose, const is calculated so
-      that ∫_1^∞ <i>u</i>(<i>r</i>)² d<i>r</i> = 512/1155 is the same as for the
-      2D Lennard-Jones. 
-      Parameters <i>a</i> and <i>b</i> are the nodes (zero values of the
-      potential), it should hold 1 &lt; <i>a</i> &lt; <i>b</i> &lt; <i>c</i>.
-      No check is performed of this condition.</li>
+      that ∫_1^∞ <i>u</i>(<i>r</i>)² d<i>r</i> = 512/1155 is the same as for
+      the 2D Lennard-Jones.  Parameters <i>a</i> and <i>b</i> are the nodes
+      (zero values of the potential), it should hold 1 &lt; <i>a</i>
+      &lt; <i>b</i> &lt; <i>c</i>.  No check is performed of this condition.
+      The default <i>a</i>=1.25, <i>b</i>=1.4, <i>c</i>=2 set from the Force
+      Field menu is likely close to the Penrose structure, use cmd: to
+      change.</li>
 
   </ul>
 
@@ -287,7 +295,7 @@
 
     <li><b><u>S</u>ave as...</b><br>
       Save simulation parameters (N bc walls T L wall dt d method P dV tau qtau g a b c)
-      and the configuration (atom positions and velocities) and to a file.
+      and the configuration (atom positions and velocities) to a file.
       Extension <tt>.sim</tt> is added if not present.
       The <tt>sim</tt>-file is ASCII and human-readable.</li>
 
@@ -296,17 +304,18 @@
       the [▯&nbsp;record] button).  The default is <tt>simolant</tt>.  The
       browser offers text files (extension <tt>.txt</tt>), which are always
       written if recording is selected.  If CSV (Comma-Separated Values) files
-      are to be recorded, the extension <tt>.txt</tt> is changed
-      to <tt>.csv</tt>.
+      are to be recorded, see [▯ CSV] button, the extension <tt>.txt</tt> is
+      changed to <tt>.csv</tt>.
 
     <li><b><u>E</u>xport force field</b><br>
-      <p>Prints a file (tab-separated TXT or CSV, according to current setup) with the following columns:<br>
-        <tt>r</tt> = the interatomic distance<br>
-        <tt>ufull(r)</tt> = the full potential<br>
-        <tt>u(r)</tt> = the truncated potential (the same as ufull(r) except for 2DLJ)<br>
-        <tt>ffull(r)</tt> = the full force <br>
-        <tt>f(r)</tt> =  the truncated force<br>
-        <tt>-du(r)/dr_numeric</tt> = as above, obtained by a numerical derivative
+      <p>Prints a file (tab-separated TXT or CSV, according to the current
+        setup) with the following columns:<br>
+        &nbsp; <tt>r</tt> = the interatomic distance<br>
+        &nbsp; <tt>ufull(r)</tt> = the full potential<br>
+        &nbsp; <tt>u(r)</tt> = the truncated potential (the same as ufull(r) except for 2DLJ)<br>
+        &nbsp; <tt>ffull(r)</tt> = the full force <br>
+        &nbsp; <tt>f(r)</tt> =  the truncated force<br>
+        &nbsp; <tt>-du(r)/dr_numeric</tt> = as above, obtained by a numerical derivative
       </p>
 
     <li><b><u>Q</u>uit </b><br>
@@ -355,7 +364,11 @@
       surface.  On the contrary, bigger droplets catch more eagerly
       flying molecules and grow faster.</li>
 
-    <li><b><u>L</u>iquid</b><br> A small droplet is produced at
+    <li><b><u>P</u>eriodic iquid</b><br> Liquid at temperature T=0.7
+      and the periodic boundary conditions is prepared in the NPT
+      ensemble.</li>
+
+    <li><b><u>L</u>iquid droplet</b><br> A small droplet is produced at
       temperature <font face="helvetica">T=0.6</font> in the periodic
       boundary consitions.  It will solidify on cooling and evaporate on
       heating up.<br>
@@ -363,15 +376,16 @@
       flying icecube artifact can be observed with the Berendesen
       thermostat.</li>
 
+    <li><b><u>T</u>wo droplets</b><br> Two droplets are prepared at
+      temperature <font face="helvetica">T=0.6</font> in the periodic boundary
+      conditions.  They approach each other with velocity <i>v</i>=1 (can be
+      changed from cmd:) The simulation is switched to NVE.  Based on the
+      value of <i>v</i>, heating or cooling is observed on the graph of
+      Tkin.</li>
+
     <li><b><u>B</u>ubble (cavity)</b><br>
       A cavity (commonly called "bubble") in liquid.</li>
 
-    <li><b><u>T</u>wo droplets</b><br>
-      Two droplets are created with velocity <i>v</i>=0.1 towards each other.
-      This velocity can be changed from cmd:; the default is 1, the maximum is
-      10, the minimum 0.  The simulation is NVE so that the change in
-      temperature can be observed.</li>   
-      
     <li><b><u>C</u>apillary</b><br>
       Capillary action under a microscope. The left, right, and bottom
       walls are attractive and a small gravity is turned on. You can see
@@ -440,12 +454,11 @@
       attraction.  This model does not have a thermodynamic limit (the Gibbs
       state is singular).</li>
 
-    <li><b><u>D</u>ouble well (a=1.25,b=1.4,c=-2)</b><br>
-      <a href="#DW">A potential with a double
-      well</a>. Parameters <i>a</i>,<i>b</i>,<i>c</i> can be changed from
+    <li><b><u>D</u>ouble well (a=1.25,b=1.4,c=2)</b><br>
+      <a href="#DW">A potential with a double  well</a>.
+      Parameters <i>a</i>,<i>b</i>,<i>c</i> can be changed from
       cmd:; <i>c</i> is the cutoff, it must hold 1 &lt; <i>a</i> &lt; <i>b</i>
-      &lt;
-      <i>c</i>.
+      &lt; <i>c</i>.
   </ul>
 
   <a name="Method"></a>
@@ -500,7 +513,7 @@
     <a name="Metropolis"></a>
     <li><b>Monte Carlo NVT (<u>M</u>etropolis)</b><br>
       The more useful Metropolis Monte Carlo algorithm works at
-      constant temperature <i>T</i>, which is a parameter of the
+      constant temperature T, which is a parameter of the
       simulation.  Here the demon visits a termostat before every step
       and gets energy corresponding to its temperature.
       Mathematically
@@ -513,7 +526,7 @@
       Once again, high-energy configurations are more probable at high
       temperatures, low-energy configurations at low temperatures.  The
       demon's temperature Tbag converges to the thermostat temperature
-      <i>T</i> and then fluctuates around it (on average, the energy the demon
+      T and then fluctuates around it (on average, the energy the demon
       returns to the thermostat equals the energy he gets back).</li>
 
     <a name="MCNPT"></a>
@@ -585,7 +598,7 @@
       In order to maintain constant temperature, a thermostat has to be used.
       The simplest one is the Berendsen (friction) thermostat.  It works by
       rescaling all velocities by a factor so that Tkin approaches slowly the
-      defined temperature <i>T</i>.  This thermostat (with long enough τ)
+      defined temperature T.  This thermostat (with long enough τ)
       does not affect transport phenomena as diffusivity and
       is good for fast cooling or heating.  The coupling of the thermostat
       with the system is given by the coupling (correlation) time τ.  Too low
@@ -619,7 +632,7 @@
       Constant temperature is maintained by thermalizing the molecules
       randomly: A molecule forgets its old velocity and is launched at
       random direction with random velocity corresponding (on average) to
-      temperature <i>T</i> (so-called Maxwell-Boltzmann distribution).
+      temperature T (so-called Maxwell-Boltzmann distribution).
       Again, τ determines how often (on average) a molecule is visited by a
       random Maxwell-Boltzmann kicker.  This type of thermostat can be
       interpreted as an action of random impacts of invisible gas molecules
@@ -630,7 +643,7 @@
     <li><b>Molecular Dynamics NVT (Ma<u>x</u>well-Boltzmann)</b><br>
 
       As above except that all molecules are asigned Maxwell-Boltzmann
-      random velocity corresponding (on average) to temperature <i>T</i> at
+      random velocity corresponding (on average) to temperature T at
       once every τ.</li>
 
     <a name="Langevin"></a>
@@ -639,7 +652,7 @@
       Small random forces ceaselessly disturb all molecules.  Since this
       would heat the system, a friction is added to slow the molecules.  If
       both forces are balanced, the system maintains given
-      temperature <i>T</i>.  A simple version of the algorithm is
+      temperature T.  A simple version of the algorithm is
       implemented so that the ensemble is not exactly canonical for short τ
       and long dt.</li>
 
@@ -820,6 +833,10 @@
     <li><b><u>P</u>ressure convergence profile</b><br>
       The convergence profile of virial pressure.
 
+    <li><b><u>M</u>omentum (e.g., for Vicsek)</b><br>
+      The total momentum (or velocity because <i>m</i>=1) of the simulation
+      box per particle.
+
     <li><b><u>I</u>ntegral of motion convergence profile</b><br>
       The conserved energy in MD (NVE: total energy, Nosé-Hoover and MTK:
       extended energy).
@@ -955,8 +972,8 @@
   <table>
     <tr><td><font face="helvetica">N</font></td><td> Number of particles.</td></tr>
     <tr><td><font face="helvetica">LJ c=</font></td><td> Cutoff for the Lennard-Jones-like potential.</td>
-    <tr><td><font face="helvetica">WCALJ</font></td><td> Repulsive potential (c=1.1892).</td>
-    <tr><td><font face="helvetica">PD a=</font></td><td> Penetrable disks spheres, a=potential depth.</td>
+    <tr><td><font face="helvetica">WCALJ</font></td><td> Repulsive potential (<i>c</i>=1.1892).</td>
+    <tr><td><font face="helvetica">PD a=, c=</font></td><td> Penetrable disks spheres, a=potential depth, c=disk size (cutoff)</td>
     <tr><td><font face="helvetica">DWa,b,c</font></td><td> Double well with parameters a,b,c.</td>
     <tr><td><font face="helvetica">T</font></td><td> Thermostat or method temperature.</td></tr>
     <tr><td><font face="helvetica">τ</font></td><td> Thermostat correlation (coupling) time (MD only).</td></tr>
@@ -972,7 +989,7 @@
   </table>
   <p>The following quantities are shown during simulation in the right panel and also printed to the protocol and convergence profiles.</p>
   <table>
-    <tr><td><font color="blue" face="helvetica">t</font></td><td> Time or the number of MC sweeps from é during recording.</td></tr>
+    <tr><td><font color="blue" face="helvetica">t</font></td><td> Time or the number of MC sweeps from 0 during recording.</td></tr>
     <tr><td><font color="blue" face="helvetica">Tkin</font></td><td> Kinetic temperature (averaged in blocks, MD only).</td></tr>
     <tr><td><font color="blue" face="helvetica">Tbag</font></td><td> Creutz demon bag temperature (averaged, MC only).</td></tr>
     <tr><td><font color="blue" face="helvetica">dt</font></td><td> Integration time step (MD only); "dt⇒" denotes that dt has been determined automatically from T and τ.</td></tr>
@@ -990,10 +1007,11 @@
     <tr><td><font color="blue" face="helvetica">p</font></td><td> |averaged momentum of the simulation box| (0 for momentum-preserving MD, order parameter of the Vicsek model).</td></tr>
     <tr><td><font color="blue" face="helvetica">H</font></td><td> Enthalpy.</td></tr>
     <tr><td><font color="blue" face="helvetica">Econserved</font></td><td> Conserved energy (MD: NVE, NVT Nosé–Hoover, MTK).</td></tr>
+    <tr><td><font color="blue" face="helvetica">p</font></td><td>momentum (velocity) per particle, |∑ v_i|/N.</td></tr>
   </table>
 
   <a name="Sliders"></a>
-  <h3><font color="navy" face="sans"><i>Parameters (Sliders panel)</i></font></h3>
+  <h3><font color="navy" face="sans"><i>Parameters (panel of sliders)</i></font></h3>
   <p>Sliders can be moved by a mouse or (when the mouse pointer is over)
     finely by arrows.  The response of most sliders is not linear.
 
@@ -1009,7 +1027,7 @@
       (MD only).<br>
 
       Long time means that the system is well insulated from the thermostat
-      and the system temperature approaches the predefined value <i>T</i>
+      and the system temperature approaches the predefined value T
       slowly. Short time ensues fast heat flow.</li>
 
     <li><font face="helvetica">d</font> &nbsp; Trial displacement radius
@@ -1061,7 +1079,7 @@
       </ul>
   </ul>
 
-  <a name="Walls"></a>
+  <a name="Walls + shifts"></a>
   <h3><font color="navy" face="sans"><i>Walls</i></font></h3>
   Clicking the respective buttons will toggle repulsive (red) and attractive
   (green) walls.  Button [invert] swaps repulsive ↔ attractie walls.
@@ -1073,9 +1091,10 @@
     <li><b>record</b><br>
 
       Turning the [▯&nbsp;record] button on will start recording the measured
-      values (of energies, pressure, etc.).<br>  If the [▯&nbsp;record] button
-      is turned off, averages of the measured quantities are displayed (with
-      error estimates). You may choose from:
+      values (of energies, pressure, etc.), including the convergence and density profiles if selected in the [include] pull-down menu. <br>
+
+      If the [▯&nbsp;record] button is turned off, averages of the measured
+      quantities are displayed (with error estimates). You may choose from:
       <ul>
         <li><font face="helvetica">clear (data lost)</font> – measured data
           are cleared, recording is turned off.</li>
@@ -1104,18 +1123,19 @@
       (human-readable) and <font face="helvetica">simolant.csv</font> contains
       just columns with a header.
 
-    <li><b>,</b><br>
+    <li><b>comma</b><br>
 
       If selected, the recorded file will contain decimal commas, not
-      dots. The same applies to the CSV file(s), where also the separator
-      is changed to ';'.</li>
+      dots. The same applies to the CSV file(s), where also the separator is
+      changed to ';'.  The cmd: field input accepts both comma and period.
+      The on-screen output uses periods only.</li>
 
     <li><b>include:</b><br>
 
       The following verbose information is generated:
       <ul>
         <li> <b><u>N</u>othing</b> – No additional information; i.e., only statistics of thermodynamic quantities is recorded.</li>
-        <li> <b><u>C</u>onvergence prof.</b> – Convergence profile = time series of quantites; i.e., a line of selected block-averaged thermodynamic quantities is printed for every block.</li>
+        <li> <b><u>C</u>onvergence profile</b> – Convergence profile = time series of quantites; i.e., a line of selected block-averaged thermodynamic quantities is printed for every block.</li>
         <li> <b><u>D</u>ensity profile</b> – The active density/distribution function including the cumulative function is printed when recording is stopped. The density/distribution function is selected from menu Show.</li>
         <li> <b><u>B</u>oth</b> – Both convergence profile and the selected density/distribution function.</li>
       </ul>
@@ -1126,14 +1146,15 @@
 
     <li><b>cmd:</b><br>
       Allows for entering data in the form of numbers instead of sliders as
-      well as query.
+      well as queries.
       The format to assign a NUMBER to a VARIABLE is:<br>
       &nbsp; &nbsp; <font face="helvetica">VARIABLE=NUMBER</font><br>
-      To print the value of VRIABLE:<br>
+      To print the value of VARIABLE:<br>
       &nbsp; &nbsp; <font face="helvetica">VARIABLE</font><br>
       Type Enter after entering the data.
       For instance:<br>
       &nbsp; &nbsp; <font face="helvetica">rho=0.01</font><br>
+      &nbsp; &nbsp; <font face="helvetica">ρ</font><br>
       The values can be outside the respective slider range; the slider
       will then show a minimum or maximum.  A check is still made whether
       the variable entered is within some reasonable range, but not
@@ -1166,8 +1187,8 @@
         <tr><td>stride</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
         <tr><td>T</td><td>slider</td><td>Thermostat temperature.</td></tr>
         <tr><td>tau, τ</td><td>slider</td><td>Thermostat time constant (MD).</td></tr>
-        <tr><td>trace</td><td></td><td>Trace length for draw mode Traces (default=64) and Art color mode.</td></tr>
-        <tr><td>v</td><td></td><td>Droplet--droplet velocity for Prepare system → Two droplets.</td>
+        <tr><td>trace</td><td></td><td>Trace length for draw mode Traces and Art color mode (default=64).</td></tr>
+        <tr><td>v</td><td></td><td>Droplet–droplet velocity for Prepare system → Two droplets.</td>
         <tr><td>wall</td><td></td><td>Wall number density (smoothed to make the material of walls).</td>
       </table>
       All these variables can also be used in option -P at start.
