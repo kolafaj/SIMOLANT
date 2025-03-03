@@ -107,6 +107,10 @@ struct Sliders {
     *speed,*block;
 } sliders;
 
+struct Parms_s {
+  Fl_Button *plus,*minus,*gzero;
+} Parms;
+
 struct Buttons {
   Fl_Light_Button *wallx,*wally,*wallxL,*wallyL;
   Fl_Button *shift_up,*shift_down,*shift_left,*shift_right;
@@ -168,6 +172,7 @@ Fl_Menu_Bar *menu;
 #include "simulate.cc"
 
 Fl_Menu_Item menuitems[] = {
+  // NAME KEYBOARD_SHORTCUT CALLBACK *USERDATA
   { "&File ", FL_ALT|'f', 0, 0, FL_SUBMENU },
   { "&Protocol name...", 0, cb_protocol, 0, FL_MENU_DIVIDER },
   { "&Load configuration...", 0, cb_load },
@@ -181,19 +186,20 @@ Fl_Menu_Item menuitems[] = {
   { "+ G&ravity", 0, cb_gravity, 0, FL_MENU_DIVIDER },
   { "Vapor-liquid e&quilibrium", 0, cb_vle },
   { "Horizontal &Slab", 0, cb_slab },
-  { "&Nucleation", 0, cb_nucleation, 0, FL_MENU_DIVIDER },
-  { "&Periodic liquid", 0, cb_periodicliquid },
+  { "&Nucleation", 0, cb_nucleation },
   { "&Liquid droplet", 0, cb_liquid },
   { "&Two droplets", 0, cb_twodrops },
   { "&Bubble (cavity)", 0, cb_cavity },
-  { "&Capillary", 0, cb_capillary, 0, FL_MENU_DIVIDER  },
+  { "&Capillary", 0, cb_capillary },
+  { "&Periodic liquid", 0, cb_periodicliquid, 0, FL_MENU_DIVIDER },
   { "&Hexagonal crystal", 0, cb_crystal },
   { "+ &Edge defect", 0, cb_defect },
   { "+ &Vacancy", 0, cb_vacancy },
-  { "+ &Intersticial", 0, cb_intersticial, 0, FL_MENU_DIVIDER },
+  { "+ &Intersticial", 0, cb_intersticial },
+  { "Pe&riodic crystal", 0, cb_periodiccrystal, 0, FL_MENU_DIVIDER },
   { "Vicse&k active matter", 0, cb_vicsek },
   { 0 },
-  { "F&orce field  ", FL_ALT|'f', 0, 0, FL_SUBMENU },
+  { "F&orce field  ", FL_ALT|'o', 0, 0, FL_SUBMENU },
   { "&Lennard-Jones c=4 (recommended)", 0, cb_LJ, 0, FL_MENU_DIVIDER},
   { "&Repulsive (WCALJ, c=1.1892)", 0, cb_WCA},
   { "&Penetrable disks (a=1,c=2)", 0, cb_PD},
@@ -226,8 +232,7 @@ Fl_Menu_Item menuitems[] = {
   { "&Slit (x-periodic, y-walls)", 0, cb_slit },
   { "&Periodic", 0, cb_periodic },
   { 0 },
-  { "&Show and measure  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
-  { "&Nothing (almost)", 0, cb_nomeas },
+  { "&Show  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
   { "&Quantities", 0, cb_quantities, 0, FL_MENU_DIVIDER },
   { "&Energy/enthalpy convergence profile", 0, cb_energy },
   { "&Temperature convergence profile", 0, cb_temperature },
@@ -240,7 +245,7 @@ Fl_Menu_Item menuitems[] = {
   { "&Droplet radial density profile", 0, cb_dprofile },
   { "&Cavity radial density profile", 0, cb_cprofile },
   { 0 },
-  { "&Tinker  ", FL_ALT|'s', 0, 0, FL_SUBMENU },
+  { "&Tinker  ", FL_ALT|'t', 0, 0, FL_SUBMENU },
   { "FPS=&15", 0, cb_fps15 },
   { "FPS=&30", 0, cb_fps30 },
   { "FPS=&60", 0, cb_fps60 },

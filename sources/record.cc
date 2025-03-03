@@ -434,7 +434,7 @@ Convergence profile (time development of quantities)\n\
           if (cpcsv) fclose(cpcsv);
           else fputs("\n",out); }
 
-        if (measure>=RDF && (incl->value()&2)) { // density profiles
+        if (Show>=RDF && (incl->value()&2)) { // density profiles
           int i;
           double q,cumul=0,Q;
           const char *dpkey=NULL;
@@ -443,7 +443,7 @@ Convergence profile (time development of quantities)\n\
 
           if (!files.csv) fputs("------------------------------\n",out);
 
-          switch (measure) {
+          switch (Show) {
             case RDF:
               dpkey="RDF";
               q=1./50; // grid per 1
@@ -496,11 +496,11 @@ r\tρ(r)\tN(r)\tKEY\n"); }
 
           /* print RDF and density profiles to string lout */
           loop (i,0,HISTMAX) {
-            if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
+            if (Show==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
             if (dpcsv) sprintf(lout,"%g\t%g\t%g\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q);
             else sprintf(lout,"%g\t%g\t%g\t%s%d\n",(i+shift)*q,rhosum[i]/head->n,cumul*Q,dpkey,files.nmeas);
-            if (measure==YPROFILE) cumul+=(rhosum[i]/head->n);
+            if (Show==YPROFILE) cumul+=(rhosum[i]/head->n);
             else cumul+=(rhosum[i]/head->n)*(2*i+1);
 
             comma(lout); // change . to ,

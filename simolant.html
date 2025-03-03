@@ -364,10 +364,6 @@
       surface.  On the contrary, bigger droplets catch more eagerly
       flying molecules and grow faster.</li>
 
-    <li><b><u>P</u>eriodic iquid</b><br> Liquid at temperature T=0.7
-      and the periodic boundary conditions is prepared in the NPT
-      ensemble.</li>
-
     <li><b><u>L</u>iquid droplet</b><br> A small droplet is produced at
       temperature <font face="helvetica">T=0.6</font> in the periodic
       boundary consitions.  It will solidify on cooling and evaporate on
@@ -391,6 +387,10 @@
       walls are attractive and a small gravity is turned on. You can see
       a meniscus.  Try to make the left and right walls repulsive and
       observe the changes!</li>
+
+    <li><b><u>P</u>eriodic liquid</b><br> Liquid at temperature T=0.7
+      and the periodic boundary conditions is prepared in the NPT
+      ensemble.</li>
 
     <li><b><u>H</u>exagonal crystal</b><br>
       A perfect piece of hexagonal crystal
@@ -422,6 +422,28 @@
     <li><b>+ <u>I</u>nterstitial</b><br>
       One additional atom in a perfect crystal. This atom has a high
       energy diffuses very fast.</li>
+
+    <li><b>Pe<u>r</u>iodic crystal</b><br> An approximate periodic crystal at
+      temperature T=0.3 and the periodic boundary conditions is prepared in
+      the NPT ensemble.<br>
+
+      It is not possible to exactly match a hexagonal lattice to a square
+      boundary conditions; however, the following "magic numbers" of particles
+      lead to less and less distorted crystals:<br><br>
+      &nbsp;  &nbsp; N = (0, 1,) 4, 15, 56, 209, 780, 2911, 10864, 40545, ...<br>
+      &nbsp;  &nbsp; Recursively: N<sub>n</sub> = 4N<sub>n−1</sub>−N<sub>n−2</sub> (N<sub>0</sub> = 0, N<sub>1</sub> = 1)<br>
+      &nbsp;  &nbsp; Explicitly: N<sub>n</sub>  = [(2+√3)^n−(2−√3)^n] / (2√3)<br><br>
+      The maximum error in the angle (π/3 = 60°) of both basis vectors  is 1/2N = 28.65°/N.<br>
+
+      The code first rounds the number of particles to the nearest (in the
+      logarithmic sense) magic number and then it constructs the crystal.
+      The minimum is 15, the maximum (with N= from cmd:) is 2911.
+      Other "less magic" solutions (as doubled magic numbers with the crystal
+      rotated by 45°) are not considered.<br>
+
+      For N=15 or 56, low  T and appropriate ρ or P, the best crystal forms
+      spontaneously.  For higher N this happens only occasionally and (e.g.)
+      several heating/freezing cycles are needed.</li>
 
     <li><b>Vicse<u>k</u> active matter</b><br>
       Gas of penetrable disks with <i>a</i>=0.2, <i>c</i>=4, low density, and
@@ -736,18 +758,13 @@
       leaving the box to the right will appear from the left.</li>
 
     <li><b><u>P</u>eriodic</b><br>
-      The system is periodic in both the <i>x</i>- and <i>y</i>-directions. The
-      topology is the same as of a tire.<br>
-
-      Magic numbers of particles for crystals: 4, 15, 56, 209, 780, then
-      doubled series and halved series (for even numbers). This means that a
-      crystal without defects matching well a square periodic box is
-      possible. NPT Berendsen method is recommended.
+      The system is periodic in both the <i>x</i>- and <i>y</i>-directions.
+      The topology is the same as of a tire.<br>
     </li>
   </ul>
 
   <a name="Show"></a>
-  <h3><font color="navy" face="sans"><i><u>S</u>how and measure</i></font></h3>
+  <h3><font color="navy" face="sans"><i><u>S</u>how</i></font></h3>
 
   <p>Select quantities to measure and show and a graph to draw.  If button
     [▯&nbsp;record] is pressed, the averages of the
@@ -755,40 +772,46 @@
     recorded.</p>
 
   <ul>
-    <li><b><u>M</u>inimum</b><br>
+    <li><b><u>N</u>othing (almost)</b><br>
 
-      Measuring most quantities is turned off, shown are only the potential
+      Measuring most quantities is turned off, shown are only the temperatures and for MC the potential
       energy and temperature/kinetic energy (if applicable) and basic method
       parameters.  If <font face="helvetica">▯&nbsp;record</font> is requested,
-      Quantities (full measurements) are selected.
+      Quantities (full measurements) are selected automatically.
       </li>
 
     <li><b><u>Q</u>uantities</b><br>
 
       As above and additional quantities are measured and shown as text:<br>
 
-      Pressure (calculated from the virial of force); this pressure is used in
-      barostats.
+      <font color=blue>Pvir</font>
+      = pressure (calculated from the virial of force);
+      this pressure is also used in barostats.
       This pressure for thermostats conserving the linear momenta in the
-      periodic and slit boundary conditions include the “kinettip pressure
+      periodic and slit boundary conditions include the “kinettic pressure
       correction”.  Thus, the ideal gas in the limit of ρ→0 gives exact
       compresibility factor, Z=1. See the MACSIMUS manual for details and
       tests.  The respective kinetic energy scaling factors are printed as
       qx,qy.<br>
 
-      Diagonal components of the pressure tensor (calculated from the virial
-      of force).<br>
+      <font color=blue>Pxx, Pyy</font>
+      = diagonal components of the pressure tensor as calculated
+      from the virial of force.  This is the natural pressure in the
+      periodic boundary conditions, but it is available also with walls; both
+      values should match. (NB: the virial component of gravity is not
+      included.)<br>
 
-      Components of pressure on walls (calculated from forces on walls, if
-      applicable).<br>
+      <font color=blue>P(top wall), P(bottom wall)</font>
+      = pressure on walls as calculated from forces on walls.<br>
 
-      Line tension ("surface tension" in 2D).<br>
-        &nbsp; &nbsp; γ = Ly*(Pyy−Pxx) (makes sense only in the slab geometry).
+      <font color=blue>γ = gamma</font> = line tension ("surface tension" in 2D):<br>
+      &nbsp; &nbsp; γ = Ly*(Pyy−Pxx)<br>
+      It makes sense only in the slab geometry.<br>
 
-      Mean square displacement (MSD) measurement is started when
+      <font color=blue>MSDx, MSDy</font> = mean square displacement (MSD) measurement is started when
       [▯&nbsp;record] is pressed.  The MSDs in x and y directions are
       calculated separately.  The formula is<br>
-      &nbsp; &nbsp; MSDx(t) = ∑ [r(0).x−r(t).x]² / N<br>
+      &nbsp; &nbsp; MSDx(t) = ∑<sub>i</sub> [x<sub>i</sub>(0)−x<sub>i</sub>(t)]² / N<br>
       and is applied for the last configuration in a block.
       The algorithm operates with scaled coordinates (thus, NPT is valid) and
       follows particle paths in the periodic boundary conditions.  If the
@@ -796,14 +819,13 @@
       message is issued and the MSD calculation is turned off.  The remedy is
       to decrease the block size and/or stride.<br>
 
-      The slope of the linear part of MSD.x(t) and MSD.y(t)  is 2D in the periodic
-      boundary conditions, where D is the diffusivity.  This calculation is
-      rather imprecise (error ~1/√N); therefore, several shorter independent
-      measurements should be averaged.  (Ideally, overlapping blocks are
-      recommended, see
+      The slope of the linear part of MSD.x(t) and MSD.y(t) is 2D in the
+      periodic boundary conditions, where D is the diffusivity.  This
+      calculation is rather imprecise (error ~1/√N); therefore, several
+      shorter independent measurements should be averaged.  (Ideally,
+      overlapping blocks are recommended, see
       <a href="https://doi.org/10.1016/j.molliq.2006.12.015">J. Picálek, J.
         Kolafa: J. Mol. Liq. 134, 29–33 (2007)</a>).<br>
-
 
       All the following options include these extended measurements, which
       are exported if <font face="helvetica">▯&nbsp;record</font> is pressed.</li>
@@ -1176,14 +1198,14 @@
         <tr><td>ff</td><td>menu</td><td>Force field (0=2DLJ,1=WCALJ,2=PD,3=DW).</td></tr>
         <tr><td>g</td><td>slider</td><td>Gravity.</td></tr>
         <tr><td>L</td><td></td><td>Box size (density ρ gets recalculated).</td></tr>
-        <tr><td>measure</td><td>menu</td><td>Show and measure, integer from 0 in the order defined in the menu.</td></tr>
+        <tr><td>measure</td><td>menu</td><td>REMOVED in V03/2025, use show instead.</td></tr>
         <tr><td>method</td><td>menu</td><td>Method (MC/MD, thermostat..), integer from 0 in the order defined in the menu.</td></tr>
         <tr><td>N</td><td>slider</td><td>Number of particles; also option -N (deprecated).</td></tr>
         <tr><td>nbr</td><td></td><td>Atom-atom distance limit to define neighbors (for coloring)</td></tr>
         <tr><td>P</td><td>slider</td><td>Barostat pressure.</td></tr>
         <tr><td>qtau, qτ&nbsp;</td><td></td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
         <tr><td>rho, ρ</td><td>slider</td><td>Number density, ρ=N/V; L gets recalculated.</td></tr>
-        <tr><td>show</td><td></td><td>The same as “measure”.</td></tr>
+        <tr><td>show</td><td>menu</td><td>Show quantities/graphs, integer from 0 in the order defined in the menu.</td></tr>
         <tr><td>stride</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
         <tr><td>T</td><td>slider</td><td>Thermostat temperature.</td></tr>
         <tr><td>tau, τ</td><td>slider</td><td>Thermostat time constant (MD).</td></tr>
@@ -1324,6 +1346,7 @@
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
   <ul>
+    <li>03/2025</li>Option nomeasure removed, menu renamed to show: always Pvir etc. measured at end of sweep due to code and control simplicity<br>
     <li>02/2025</li>Vicsek model of active matter added<br>
       two droplets colored, velocity added (variable <i>v</i>)<br>
       colormode Art (ranbow) added, variable trace added (for Traces and Art)

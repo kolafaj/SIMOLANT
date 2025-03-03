@@ -50,7 +50,7 @@ private:
       else
         mcstart-=speed.stride; }
 
-    insdel((int)(pow(sliders.N->value(),NPOW)+0.5));
+    insdel(SlidertoN(sliders.N->value()));
 
     if (isNPT(method))
       P=sliders.P->value();
@@ -114,7 +114,7 @@ private:
     En.Upot=0;
     En.P=zero; /* P=sum r*f = -virial */
     En.fwx=En.fwxL=En.fwy=En.fwyL=0;
-    addP=measure==RDF?addPRDF:addPonly;
+    addP=Show==RDF?addPRDF:addPonly;
     loop (i,0,N) {
       ri=r[i];
       En.Upot+=gravity*r[i].y; // potential of gravity
@@ -158,15 +158,15 @@ private:
                   addP(rt.x,rt.y); } }
       } }
 
-    if (measure==YPROFILE) {
+    if (Show==YPROFILE) {
       cfgcenter();
       loop (i,0,N) {
         unsigned ir=(shift.y-r[i].y)*(HISTMAX/L);
         hist[ir%HISTMAX]++; } }
 
-    if (measure>=RPROFILE) {
+    if (Show>=RPROFILE) {
       cfgcenter();
-      if (measure==RPROFILE) { shift.x+=Lh; shift.y+=Lh; }
+      if (Show==RPROFILE) { shift.x+=Lh; shift.y+=Lh; }
       else if (bc==SLIT) shift.y=Lh;
       else if (bc==BOX) shift.y=shift.x=Lh;
       while (shift.x>Lh) shift.x-=L;
@@ -206,30 +206,32 @@ private:
     get_data();
     if (run->value()) {
       loop (i,0,speed.stride) {
+        int Pneeded=0; // for MDNPT: not needed unless the last step 
 
         if (i==speed.stride-1) {
           /* measurements BEFORE the last cycle so that Ekin is in sync
              with En.Upot AFTER this loop has finished */
-          if (measure) {
-            meas();
-            sum.P.x+=En.P.x;
-            sum.P.y+=En.P.y;
-            sum.fwx+=En.fwx;
-            sum.fwxL+=En.fwxL;
-            sum.fwy+=En.fwy;
-            sum.fwyL+=En.fwyL;
-            sum.momentum+=sqrt(Sqr(En.momentum.x)+Sqr(En.momentum.y));
-            V=N/L2rho(L);
-            sum.V+=V; /* some corrections for not PERIODIC */
-            sum.U+=En.Upot;
-            if (method<=MCNPT) {
-              /* the current bag + En.Upot is constant for CREUTZ */
-              Econserved=En.Upot+bag;
-              sum.Econserved+=Econserved;
-              sum.Ekin+=bag; } } }
+
+          // since 03/2025, ALWAYS measured (in the last step of a sweep)
+          meas();
+          sum.P.x+=En.P.x;
+          sum.P.y+=En.P.y;
+          sum.fwx+=En.fwx;
+          sum.fwxL+=En.fwxL;
+          sum.fwy+=En.fwy;
+          sum.fwyL+=En.fwyL;
+          sum.momentum+=sqrt(Sqr(En.momentum.x)+Sqr(En.momentum.y));
+          V=N/L2rho(L);
+          sum.V+=V; /* some corrections for not PERIODIC */
+          sum.U+=En.Upot;
+          if (method<=MCNPT) {
+            /* the current bag + En.Upot is constant for CREUTZ */
+            Econserved=En.Upot+bag;
+            sum.Econserved+=Econserved;
+            sum.Ekin+=bag; } }
 
         if (isMD(method)) {
-          MDstep();
+          MDstep(Pneeded);
           sum.Tk+=Tk/speed.stride; }
         else {
           accepted=Vaccepted=0;
@@ -583,7 +585,6 @@ private:
 
     files.record0=files.record;
 
-    if (files.record && measure==NONE) measure=QUANTITIES;
     //    fprintf(stderr,"draw: head=%p %g record=%d\n",head,t,files.record);
     if (!files.record && head) {
       /* just turned off */

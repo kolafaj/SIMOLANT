@@ -199,16 +199,17 @@ static void cb_vle(Fl_Widget*, void *data) { initcfg(VLE); }
 static void cb_slab(Fl_Widget*, void *data) { initcfg(SLAB); }
 static void cb_nucleation(Fl_Widget*, void *data) { initcfg(NUCLEATION); }
 
-static void cb_periodicliquid(Fl_Widget*, void *data) { initcfg(PERIODICLIQUID); }
 static void cb_liquid(Fl_Widget*, void *data) { initcfg(LIQUIDDROP); }
 static void cb_twodrops(Fl_Widget*, void *data) { initcfg(TWODROPS); }
 static void cb_cavity(Fl_Widget*, void *data) { initcfg(CAVITY); }
 static void cb_capillary(Fl_Widget*, void *data) { initcfg(CAPILLARY); }
+static void cb_periodicliquid(Fl_Widget*, void *data) { initcfg(PERIODICLIQUID); }
 
 static void cb_crystal(Fl_Widget*, void *data) { initcfg(CRYSTAL); }
 static void cb_defect(Fl_Widget*, void *data) { initcfg(DEFECT); }
 static void cb_vacancy(Fl_Widget*, void *data) { initcfg(VACANCY); }
 static void cb_intersticial(Fl_Widget*, void *data) { initcfg(INTERSTITIAL); }
+static void cb_periodiccrystal(Fl_Widget*, void *data) { initcfg(PERIODICCRYSTAL); }
 
 static void cb_vicsek(Fl_Widget*, void *data) { initcfg(INITVICSEK); }
 
@@ -218,18 +219,17 @@ static void cb_periodic(Fl_Widget*, void *data) { bc=PERIODIC; }
 static void cb_slit(Fl_Widget*, void *data) { bc=SLIT; }
 
 // Measure menu
-static void cb_nomeas(Fl_Widget*, void *data) { measure=NONE; }
-static void cb_quantities(Fl_Widget*, void *data) { measure=QUANTITIES; }
-static void cb_energy(Fl_Widget*, void *data) { measure=ENERGY; }
-static void cb_temperature(Fl_Widget*, void *data) { measure=TEMPERATURE; }
-static void cb_intmotion(Fl_Widget*, void *data) { measure=INTMOTION; }
-static void cb_pressure(Fl_Widget*, void *data) { measure=PRESSURE; }
-static void cb_volume(Fl_Widget*, void *data) { measure=VOLUME; }
-static void cb_momentum(Fl_Widget*, void *data) { measure=MOMENTUM; }
-static void cb_rdf(Fl_Widget*, void *data) { measure=RDF; }
-static void cb_zprofile(Fl_Widget*, void *data) { measure=YPROFILE; }
-static void cb_dprofile(Fl_Widget*, void *data) { measure=RPROFILE; }
-static void cb_cprofile(Fl_Widget*, void *data) { measure=CPROFILE; }
+static void cb_quantities(Fl_Widget*, void *data) { Show=QUANTITIES; }
+static void cb_energy(Fl_Widget*, void *data) { Show=ENERGY; }
+static void cb_temperature(Fl_Widget*, void *data) { Show=TEMPERATURE; }
+static void cb_intmotion(Fl_Widget*, void *data) { Show=INTMOTION; }
+static void cb_pressure(Fl_Widget*, void *data) { Show=PRESSURE; }
+static void cb_volume(Fl_Widget*, void *data) { Show=VOLUME; }
+static void cb_momentum(Fl_Widget*, void *data) { Show=MOMENTUM; }
+static void cb_rdf(Fl_Widget*, void *data) { Show=RDF; }
+static void cb_zprofile(Fl_Widget*, void *data) { Show=YPROFILE; }
+static void cb_dprofile(Fl_Widget*, void *data) { Show=RPROFILE; }
+static void cb_cprofile(Fl_Widget*, void *data) { Show=CPROFILE; }
 
 // Help menu
 static void cb_help(Fl_Widget* w,void *data) /********************** cb_help */
@@ -381,8 +381,8 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
     else if (!nocasecmp(cmd,"n")) { /* number of particles N, see insdel() */
       if (assign) {
         BRACKETVAL(ival,1,MAXN);
-        sliders.N->value(pow(ival,1./NPOW)); }
-      append("N",pow(sliders.N->value(),NPOW)); }
+        sliders.N->value(NtoSlider(ival)); }
+      append("N",SlidertoN(sliders.N->value())); }
   
     else if (!nocasecmp(cmd,"stride")) { /* speed, duplicated by speed.stride */
       if (assign) {
@@ -487,11 +487,11 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         if (bc<BOX || bc>PERIODIC) bc=BOX; }
       append("bc",(double)bc); }
   
-    else if (!nocasecmp(cmd,"measure") || !nocasecmp(cmd,"show")) { /* what to measure/show */
+    else if (!nocasecmp(cmd,"show")) { /* what to show */
       if (assign) {
-        measure=(measure_t)ival;
-        if (measure<NONE || measure>=NMEASURE) measure=NONE; }
-      append("measure",(double)measure); }
+        Show=(Show_e)ival;
+        if (Show<QUANTITIES || Show>=NSHOW) Show=QUANTITIES; }
+      append("Show",(double)Show); }
   
     else
       err="Error:variable"; }
@@ -519,6 +519,23 @@ static void cb_cmd(Fl_Widget* w,void *data) /************************ cb_cmd */
   buttons.cmd->show();
 } // cb_cmd()
 
+static void cb_plus(Fl_Widget* w,void *data) /********************** cb_plus */
+{
+  int N=SlidertoN(sliders.N->value())+1.5;
+  sliders.N->value(NtoSlider(N));
+} // cb_plus()
+
+static void cb_gzero(Fl_Widget* w,void *data) /******************** cb_gzero */
+{
+  sliders.g->value(0);
+} // cb_gzero()
+
+static void cb_minus(Fl_Widget* w,void *data) /******************** cb_minus */
+{
+  int N=SlidertoN(sliders.N->value())-0.5;
+  sliders.N->value(NtoSlider(N));
+} // cb_minus()
+
 static void cb_resetview(Fl_Widget* w,void *data) /************ cb_resetview */
 {
   drawmode->value(0);
@@ -528,8 +545,7 @@ static void cb_resetview(Fl_Widget* w,void *data) /************ cb_resetview */
 
 static void cb_resetgraph(Fl_Widget* w,void *data) /********** cb_resetgraph */
 {
-  justreset=1;
-  itot=HISTMAX+1;
+  lastShow=NSHOW;
 } // cb_resetgraph
 
 static void cb_invertwalls(Fl_Widget* w,void *data) /******** cb_invertwalls */

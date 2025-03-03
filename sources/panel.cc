@@ -167,7 +167,7 @@ private:
       vector Pav={sum.P.x/iblock,sum.P.y/iblock};
       double Pvir=(Pav.x+Pav.y)/2;
       vector MSDav=zero; // calc. here = last block
-      double Hav=sum.H/iblock;
+      double Hav=sum.H/iblock,Z;
       int n=-1;
 
       if (isMC(method)) {
@@ -238,7 +238,7 @@ private:
 
       /* convergence profile: interpretation of menu items */
       yaxis=NULL;
-      switch (measure) {
+      switch (Show) {
 
         case ENERGY:
           if (isNPT(method)) {
@@ -276,7 +276,7 @@ private:
           break;
 
         case MOMENTUM:
-          if (method==VICSEK) {
+          if (isMD(method)) {
             yaxis="momentum";
             CPval=momentumav; }
           break;
@@ -315,22 +315,18 @@ private:
       }
 
       // second line of cyan-blue info
-      if (measure==NONE)
-        sprintf(s2,"P/V not measured");
-      else {
-        double Z;
-        if (isNPT(method)) Z=P/(rhoav*T);
-        else if (isNVE(method)) Z=Pvir/(rhoav*Tav);
-        else Z=Pvir/(rhoav*T);
-        sprintf(s2,"V=%.4g  Pvir=%.4g  Z=%.4g",Vav,Pvir,Z);
-        shorten(s2); }
+      if (isNPT(method)) Z=P/(rhoav*T);
+      else if (isNVE(method)) Z=Pvir/(rhoav*Tav);
+      else Z=Pvir/(rhoav*T);
+      sprintf(s2,"V=%.4g  Pvir=%.4g  Z=%.4g",Vav,Pvir,Z);
+      shorten(s2);
 
-      if (measure==YPROFILE) {
+      if (Show==YPROFILE) {
         sprintf(s,"Pxx=%.3g  Pyy=%.3g  γ=%.3f",
                 Pav.x,Pav.y,(Pav.y-Pav.x)/2*L); // repeated below - why?
         shorten(s);
         fl_draw(s,atx,aty); }
-      else if (measure==QUANTITIES) {
+      else if (Show==QUANTITIES) {
         fl_draw(s2,atx,aty);
         aty+=20;
         if (bc==BOX) {
@@ -358,11 +354,10 @@ private:
 
       aty+=20;
 
-      if (measure!=NONE) {
-        if (fabs(momentumav)>1e-9) sprintf(s,"Etot=%g  Epot=%g  p=%.4f",(sum.U+sum.Ekin)/iblock,sum.U/iblock,momentumav);
-        else sprintf(s,"Etot=%g  Epot=%g",(sum.U+sum.Ekin)/iblock,sum.U/iblock);
-        fl_draw(s,atx,aty);
-        aty+=20; }
+      if (fabs(momentumav)>1e-9) sprintf(s,"Etot=%g  Epot=%g  p=%.4f",(sum.U+sum.Ekin)/iblock,sum.U/iblock,momentumav);
+      else sprintf(s,"Etot=%g  Epot=%g",(sum.U+sum.Ekin)/iblock,sum.U/iblock);
+      fl_draw(s,atx,aty);
+      aty+=20;
 
       if (shownbrs) {
         fl_color(FL_BLACK);
@@ -392,7 +387,13 @@ private:
 
       fl_color(OI_BLUE);
 
-      if (h()>180) switch (measure) {
+      if (Show!=lastShow) {
+        // reset graph
+        justreset=1;
+        itot=HISTMAX+1;
+        lastShow=Show; }
+      
+      if (h()>180) switch (Show) {
 
         case ENERGY:
         case TEMPERATURE:
@@ -402,7 +403,7 @@ private:
         case INTMOTION:
           if (!yaxis) {
             fl_color(OI_RED);
-            fl_draw(measureinfo[measure],atx-20,aty+20);
+            fl_draw(Showinfo[Show],atx-20,aty+20);
             fl_draw("is not available",atx-20,aty+40);
             break; }
 
@@ -422,7 +423,7 @@ private:
               if (etot[i]<emin) emin=etot[i];
               if (etot[i]>emax) emax=etot[i]; }
 
-            if (justreset) lmin=emin,lmax=emax,justreset=1;
+            if (justreset) lmin=emin,lmax=emax,justreset=0;
 
             if (lmin<emin) lmin=0.9*lmin+0.1*emin; else lmin=emin;
             if (lmax>emax) lmax=0.9*lmax+0.1*emax; else lmax=emax;
@@ -444,7 +445,7 @@ private:
 
             if (emax<=emin) {
               fl_color(OI_RED);
-              fl_draw(measureinfo[measure],atx,aty+40);
+              fl_draw(Showinfo[Show],atx,aty+40);
               fl_draw("nothing to show – zero range",atx,aty+60);
               break; }
 
@@ -677,7 +678,7 @@ private:
           fl_rectf(atx,aty,HISTMAX,100);
 
           fl_color(FL_WHITE);
-          if (measure==CPROFILE)
+          if (Show==CPROFILE)
             fl_draw("Cavity radial density profile",atx+5,aty+20);
           else
             fl_draw("Droplet radial density profile",atx+195,aty+20);
@@ -707,7 +708,7 @@ private:
           break;
 
           default:; /* to make the compiler happy */
-        } // measure
+        } // show
 
 
       // for next cumulative sums:
@@ -731,9 +732,9 @@ class ParameterPanel : public Fl_Box /////////////////////////// ParameterPanel
 public:
   ParameterPanel (int X,int Y,int W,int H,char const *LL=0) : Fl_Box(X,Y,W,H,LL) {
 
-    int atx=X+12;
+    int atx=X+6;
     int aty=Y+6;
-    int dx=(W-6)/5;
+    int dx=(W-35)/5; // 5 vertical sliders and N+, N-, g=0
     int sh=H-26;
 
     color(FL_GRAY);
@@ -849,12 +850,11 @@ The simulation box is displayed in the same size\n\
 so that the particle diameters are rescaled instead.");
 
     sliders.N=new Fl_Fill_Slider(atx, aty, 20, sh,"N");
-    atx+=dx;
     sliders.N->type(FL_VERT_FILL_SLIDER);
     //    sliders.N->minimum(log(MAXN));
     //    sliders.N->maximum(0);
-    sliders.N->minimum(pow(MAXN,1./NPOW));
-    sliders.N->maximum(1);
+    sliders.N->minimum(NtoSlider(1000)); // slider max N=1000, command max = MAXN
+    sliders.N->maximum(NtoSlider(2)); // slider min N=2, command min N=1 from cmd:
     sliders.N->value(0);
     sliders.N->color(SLIDERCOLOR);
     sliders.N->tooltip("\
@@ -864,6 +864,34 @@ NUMBER OF PARTICLES N\n\n\
 \n\
 The box is rescaled to keep constant density.\n\
 MD may fail and will be temporarily replaced by MC.");
+
+    atx=X+W-42; // from the "next slider"
+    
+    Parms.plus=new Fl_Button(atx,aty,35,20,"N+");
+    Parms.plus->callback(cb_plus);
+    Parms.plus->tooltip("\
+INSERT PARTICLE\n\
+\n\
+One particle is inserted: N:=N+1.\n\
+Useful if the N-slider does not have\n\
+sufficient resolution.");
+
+    Parms.gzero=new Fl_Button(atx,aty+sh/2-8,35,20,"g=0");
+    Parms.gzero->callback(cb_gzero);
+    Parms.gzero->tooltip("\
+ZERO GRAVITY\n\
+\n\
+Set the gravity to zero, g:=0.");
+    
+    Parms.minus=new Fl_Button(atx,aty+sh-21,35,20,"N−");
+    Parms.minus->callback(cb_minus);
+    Parms.minus->tooltip("\
+REMOVE PARTICLE\n\
+\n\
+One particle is removed: N:=N−1.\n\
+Useful if the N-slider does not have\n\
+sufficient resolution.");
+
   }
 };
 
@@ -907,7 +935,7 @@ public:
     buttons.wallyL=new Fl_Light_Button(atx+W/2-39,aty+52,70,20,"bottom");
     buttons.wallyL->selection_color(OI_GREEN);
     buttons.wallyL->tooltip(winfo);
-    buttons.shift_down=new Fl_Button(atx+W/2-44,aty+52,75,20,"shift down");
+    buttons.shift_down=new Fl_Button(atx+W/2-45,aty+52,77,20,"shift down");
     buttons.shift_down->callback(cb_shift_down);
     buttons.shift_down->tooltip(shiftinfo);
 
@@ -976,7 +1004,7 @@ Selected available VARIABLEs are:\n\
   tau, τ = thermostat time constant (MD)\n\
   wall = wall number density\n\
 More VARIABLEs (see the manual):\n\
-  a b bc c circle measure method nbr show trace v\n\
+  a b bc c circle method nbr show trace v\n\
 Example:\n\
   ρ=0.01\n\
 Values out of slider range are accepted.");

@@ -1,18 +1,19 @@
 /*
-   Simulation code.
-   This core of this code originates in old DOS Pascal+Turbo graphics,
+   Simulation code.  It originates in old DOS Pascal+Turbo graphics,
    then it was rewritten to C (with Turbo C graphics),
    then Turbo-graphics was emulated by X11.
    This version includes graphics rewritten to C++/FLTK, but the code is still
    rather C than C++ in design.
 */
 
-#define MAXN 2000     // max # of atoms: static arrays used
+#define MAXN 3000     // max # of atoms: static arrays used
 #define MINRHO 0.03   // NUCLEATION: 0.04
 #define MAXRHO 1.1
 #define PROBDMAX 0.03 // of long MC move, default
-#define NPOW 3        // power function for the N-slider
 #define MAXDV 0.25    // max dV: box scaling is max exp(MAXDV)
+// the N-slider is cubic (not logarithmic nor linear)
+#define NtoSlider(N) cbrt((double)N)
+#define SlidertoN(V) Cub(V) // rounded to N in insdel()
 
 #define MINT 0.1 // minimum temperature
 #define MAXT 5 // maximum temperature
@@ -107,8 +108,8 @@ typedef double (*function_t)(double r); // for potential() and forces()
 // NB: order important - >= used
 enum cfg_t {GAS,DIFFUSION,GRAVITY,
             VLE,SLAB,NUCLEATION,
-            PERIODICLIQUID,LIQUIDDROP,TWODROPS,CAVITY,CAPILLARY,
-            CRYSTAL,DEFECT,VACANCY,INTERSTITIAL,
+            LIQUIDDROP,TWODROPS,CAVITY,CAPILLARY,PERIODICLIQUID,
+            CRYSTAL,DEFECT,VACANCY,INTERSTITIAL,PERIODICCRYSTAL,
             INITVICSEK,
             SENTINEL} cfg=GAS; /* initial cfg. */
 
@@ -134,9 +135,15 @@ struct En_s {
   int Nf; // see degrees_of_freedom()
 } En; // similar as in MACSIMUS
 
-/* the last 2 enum types must be RPROFILE,CPROFILE */
-enum measure_t { NONE,QUANTITIES,ENERGY,TEMPERATURE,PRESSURE,VOLUME,MOMENTUM,INTMOTION,RDF,YPROFILE,RPROFILE,CPROFILE,NMEASURE } measure;
-const char *measureinfo[NMEASURE]={"None","Quantities","Energy","Temperature","Pressure","Volume","Momentum","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
+/* 
+  What to show in the right top panel, see menu Show.
+  Option NONE was removed in V03/2025, former name measure was changed to Show;
+  note that lowercase show collides with a member function show().
+  The last 3 enum types must be RPROFILE,CPROFILE,NSHOW,
+*/
+enum Show_e { QUANTITIES,ENERGY,TEMPERATURE,PRESSURE,VOLUME,MOMENTUM,INTMOTION,RDF,YPROFILE,RPROFILE,CPROFILE,NSHOW }
+  Show=QUANTITIES, lastShow=NSHOW;
+const char *Showinfo[NSHOW]={"Quantities","Energy","Temperature","Pressure","Volume","Momentum","Integral of motion","RDF","Yprofile","Rprofile","Cprofile" };
 
 /* for mean values over blocks - sums accumulated using addM() */
 struct sum_s {
@@ -157,6 +164,7 @@ struct sumVar_s {
 int measureVar; // number of measurements in sumq
 
 #include <sys/time.h>
+
 /* real time in better resolution (10^-6 s if provided by the system) */
 double mytime(void) /************************************************ mytime */
 {
@@ -176,9 +184,9 @@ double sqr(double x) /************************************************** sqr */
 
 #include "forcefield.cc"
 
+/* the number of mechanical degrees of freedom, conserved momenta not included */
 void degrees_of_freedom() /****************************** degrees_of_freedom */
 {
-  /* total number of mechanical degrees of fredom not counting conserved momenta */
   En.Nf=2*N;
   En.q.x=En.q.y=1;
   if (!isMC(method) && method!=ANDERSEN && method!=LANGEVIN && method!=VICSEK && method!=MAXWELL)
@@ -235,6 +243,7 @@ double fwallr(double d) /******************************************** fwallr */
   return walldens*5./4/(Sqr(dd)*dd*d);
 }
 
+/* box size L → number density ρ conversion */
 double L2rho(double L) /********************************************** L2rho */
 {
   switch (bc) {
@@ -244,6 +253,7 @@ double L2rho(double L) /********************************************** L2rho */
     default: return N/Sqr(L); }
 }
 
+/* number density ρ → box size L conversion */
 double rho2L(double rho) /******************************************** rho2L */
 {
   switch (bc) {
@@ -265,6 +275,7 @@ void setwalls() /************************************************** setwalls */
 }
 
 /* squared vector in nearest image convention */
+inline
 double Sqrni(double r) /********************************************** Sqrni */
 {
   return Sqr(Lh-fabs(Lh-fabs(r)));
@@ -287,15 +298,16 @@ double etot[HISTMAX];
 int itot=HISTMAX+2; /* wait 2, then initialize; then itot=0..HISTMAX-1 */
 double rhosum[HISTMAX];
 
+/* Maxwell-Boltzmann velocity assignment */
 void randomv(int i,double vv) /************************************* randomv */
 {
   v[i].x=vv*rndgauss();
   v[i].y=vv*rndgauss();
 }
 
+/* copy information back to sliders */
 void put_data() /************************************************** put_data */
 {
-  // copy information back to sliders
   if (bc==PERIODIC) gravity=0;
   sliders.g->value(gravity);
   sliders.d->value(log(d)/DSCALE);
@@ -303,7 +315,7 @@ void put_data() /************************************************** put_data */
   sliders.P->value(P);
   sliders.tau->value(log(tau));
   sliders.T->value(log(T));
-  sliders.N->value(pow(N,1./NPOW));
+  sliders.N->value(NtoSlider(N));
   buttons.wallx->value(walls&1);
   buttons.wallxL->value(!!(walls&2));
   buttons.wally->value(!!(walls&4));
@@ -328,8 +340,8 @@ static unsigned int nbrcol[8]={
   OI_BLACK, /* 6 */
   OI_YELLOW };
 
+/* two colors by y-coordinate */
 void y_split() /**************************************************** y_split */
-// two colors by y-coordinate
 {
   double ymedian=Lh,dy=Lh;
   int i,nred;
@@ -353,8 +365,8 @@ void randomcolors() /****************************************** randomcolors */
   loop (i,0,N) molcol[i]=irnd(0x1000000)<<8;
 }
 
-void dtadjset() /************************************************** dtadjset */
 /* automatic determination of timestep */
+void dtadjset() /************************************************** dtadjset */
 {
   if (dtfixed>0)
     dtadj=dtfixed;
@@ -409,7 +421,9 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   mauto=BUSSI;
   mcstart=40;
 
-  measure=RDF;
+  lastShow=NSHOW; // to reset the graph
+  
+  Show=RDF;
   tau=1;
   colormode->value(CM_BLACK); // black
   drawmode->value(0); // movie
@@ -437,7 +451,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
     case GRAVITY:
       /* initial random configuration in a box + gravity */
       bc=SLIT;
-      measure=YPROFILE;
+      Show=YPROFILE;
       L=rho2L(0.15); Lh=L/2;
       d=1; /* longest */
       loop (i,0,N) {
@@ -451,7 +465,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       bc=SLIT;
       L=rho2L(0.2); Lh=L/2;
       walls=8;
-      measure=YPROFILE;
+      Show=YPROFILE;
       loop (i,0,N) {
         r[i].x=rnd()*L; r[i].y=0.8+(rnd()*0.35+0.65)*(L-1); }
       T=0.65;
@@ -460,7 +474,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
     case SLAB:
       /* layer of liquid as a slab */
       bc=PERIODIC;
-      measure=YPROFILE;
+      Show=YPROFILE;
       L=rho2L(0.3); Lh=L/2;
       loop (i,0,N) {
         r[i].x=rnd()*L; r[i].y=(rnd()*0.46+0.27)*L; }
@@ -473,7 +487,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
     case NUCLEATION:
       /* initial random configuration, low density */
       bc=PERIODIC;
-      measure=ENERGY;
+      Show=ENERGY;
       L=rho2L(0.04); Lh=L/2;
       loop (i,0,N) {
         r[i].x=rnd()*L; r[i].y=rnd()*L; }
@@ -484,7 +498,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case CAVITY:
       /* cavity in attractive box */
-      measure=CPROFILE;
+      Show=CPROFILE;
       L=rho2L(0.5); Lh=L/2;
       walls=15;
       mcstart=60;
@@ -495,24 +509,11 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       T=0.6;
       break;
 
-    case PERIODICLIQUID:
-      /* initial random configuration, low density */
-      bc=PERIODIC;
-      measure=RDF;
-      L=rho2L(0.8); Lh=L/2;
-      loop (i,0,N) {
-        r[i].x=rnd()*L; r[i].y=rnd()*L; }
-      T=0.7;
-      P=0.5;
-      colormode->value(CM_NEIGHBORS);
-      mauto=MDNPT;
-      break;
-
     case LIQUIDDROP:
       /* big droplet */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
-      measure=RPROFILE;
+      Show=RPROFILE;
       loop (i,0,N) {
         do {
           r[i].x=rnd()*L; r[i].y=rnd()*L; }
@@ -525,7 +526,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       /* two droplets */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
-      measure=TEMPERATURE;
+      Show=TEMPERATURE;
       method=NVE;
       loop (i,0,N/2) {
         do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
@@ -549,7 +550,66 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       gravity=-0.01;
       walls=15-4;
       mcstart=60;
-      measure=YPROFILE;
+      Show=YPROFILE;
+      break;
+
+    case PERIODICLIQUID:
+      /* initial random configuration, low density */
+      bc=PERIODIC;
+      Show=RDF;
+      L=rho2L(0.8); Lh=L/2;
+      loop (i,0,N) {
+        r[i].x=rnd()*L; r[i].y=rnd()*L; }
+      T=0.7;
+      P=0.5;
+      colormode->value(CM_NEIGHBORS);
+      mauto=MDNPT;
+      break;
+
+    case PERIODICCRYSTAL: {
+      /* 0.87 = experimental density for T=0.3, P=0.5, c=4, N=209
+         (accidentally RHOCRYST ~ \0.75) */
+#define RHOCRYST 0.87
+      /* magic periodic N and crystal: see hexinsquare.c (\ = sqrt)
+         Resulting magical N_n = [(2+\3)^n-(2-\3)^n]/2\3 ~ (2+\3)^n/2\3 */
+      int n=log(N*3.464101615137754)/1.316957896924817+0.5; // 2\3, ln(2+\3)
+      do {
+        N=exp(n*1.316957896924817)/3.464101615137754+0.5;
+        if (N>MAXN) n--;
+        if (N<15) n++; }
+      while (N<15 || N>MAXN);
+      bc=PERIODIC;
+      Show=RDF;
+      L=rho2L(RHOCRYST);
+      Lh=L/2;
+
+      // n=4, 56, 780: (i+j/2,j*\(3/4)) or i*(1,0) + j*(1/2,\0.75)
+      // n=3,5  15, 209: i*(1/\2,1/\2) + j*(a,b); a=(1/2-q)/\2, b=(1/2+q)/\2
+      const vector v1t[2]={{1,0},{0.707106781186547,0.707106781186547}};
+      const vector v2t[2]={{0.5,0.866025403784439},{-0.258819045102521,0.965925826289068}};
+      double q=1/sqrt(RHOCRYST*0.866025403784439); // atom-atom distance = 1 for density rho=1/\0.75
+      vector v1={v1t[n&1].x*q,v1t[n&1].y*q};
+      vector v2={v2t[n&1].x*q,v2t[n&1].y*q};
+      int i,j,nn,maxn=1.5*sqrt(N);
+
+      n=0;
+      loop (i,-maxn,maxn) {
+        loop (j,-maxn,maxn) {
+          r[n].x=v1.x*i+v2.x*j;
+          if (r[n].x<0 || r[n].x>=L) continue;
+          r[n].y=v1.y*i+v2.y*j;
+          if (r[n].y<0 || r[n].y>=L) continue;
+          loop (nn,0,n)
+            if (Sqrni(r[n].x-r[nn].x) + Sqrni(r[n].y-r[nn].y) < 0.25) goto again;
+          n++;
+          if (n==N) break;
+        again:; }
+        if (n==N) break; }
+
+      T=0.3;
+      P=0.5;
+      colormode->value(CM_NEIGHBORS);
+      mauto=MDNPT; }
       break;
 
     case INITVICSEK:
@@ -557,7 +617,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       bc=PERIODIC;
       //  method=VICSEK; // shows [MD/NVT/VICSEK] instead of MD/NVT/VICSEK - why?
       mauto=VICSEK;
-      measure=MOMENTUM;
+      Show=MOMENTUM;
       mcstart=10;
       L=rho2L(0.03); Lh=L/2;
       loop (i,0,N) {
@@ -570,7 +630,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       drawmode->value(1); // traces
       break;
 
-    default: // crystals: CRYSTAL,DEFECT,VACANCY,INTERSTITIAL
+    default: // nonperiodic crystals: CRYSTAL,DEFECT,VACANCY,INTERSTITIAL
       L=rho2L(0.25); Lh=L/2;
       k=sqrt(N/3)+1;
       do {
@@ -625,10 +685,11 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   put_data();
 }
 
-void insdel(int newN) /********************************************** insdel */
+void insdel(double dN) /********************************************* insdel */
 // change the number of particles
 {
-  int i,j;
+  int i,j,newN=dN+0.5;
+  double minrr;
 
   if (N==newN) return;
 
@@ -637,10 +698,18 @@ void insdel(int newN) /********************************************** insdel */
 
   if (newN>N) // insert
     loop (i,N,newN) {
+      minrr=0.68;
+    again:
+      // "Infinite" loop to insert a particle to a cavity, but the distance
+      // limit minrr decreases so that the insertion should succeed eventually
+      minrr*=0.999;
       if (bc==BOX) r[i].x=0.8+rnd()*(L-1.6);
       else r[i].x=rnd()*L;
       if (bc==BOX || bc==SLIT) r[i].y=0.8+rnd()*(L-1.6);
       else r[i].y=rnd()*L;
+      loop (j,0,i)
+        if (sqr(Lh-fabs(Lh-fabs(r[i].x-r[j].x))) +
+            sqr(Lh-fabs(Lh-fabs(r[i].y-r[j].y))) < minrr) goto again;
       randomv(i,sqrt(T));
       a[i].x=a[i].y=0; }
   else if (newN<N) // delete
@@ -684,7 +753,7 @@ void cfgcenter() /************************************************ cfgcenter */
 /* returns:
    zero if not periodic
    center of void if periodic
-   (not good for measure=CPROFILE)
+   (not good for Show=CPROFILE)
 */
 {
   double c,s,q;
@@ -783,12 +852,19 @@ timing (all times are in s):\n\
   ns++;
 }
 
-void MDstep(void) /************************************************** MDstep */
+void MDstep(int Pneeded) /******************************************* MDstep */
 {
   vector ri,rt;
   double ff,maxvv,rr;
   double Vf;
   int i,j,k,l;
+
+  if (method!=MDNPT) Pneeded=0;
+  if (method==MTK) Pneeded=1;
+  /* Pneeded = pressure calculated here because it will be needed for a barostat:
+     MTK needs Ptensor calculated every step
+     MDNPT needs Ptensor in the last step of a sweep unless it it is
+           calculated in this step by meas() due to measure condition */
 
   degrees_of_freedom();
   nimg=ss.C2/L+1; // # of replicas if cutoff<Lh
@@ -808,7 +884,7 @@ void MDstep(void) /************************************************** MDstep */
       if (bc==BOX) a[i].x=fwallx(ri.x)-fwallxL(L-ri.x);
       else a[i].x=0; }
 
-  if (method==MTK) En.P.x=En.P.y=0; // pressure tensor every step for MTK
+  if (Pneeded) En.P=zero; // pressure tensor every step for MDNPT,MTK
 
   if (method==VICSEK) {
     memset(vllast,0,sizeof(vllast[0])*N);
@@ -819,13 +895,13 @@ void MDstep(void) /************************************************** MDstep */
     case BOX:
       loop (i,0,N) {
         ri=r[i];
-        if (method==MTK) {
+        if (Pneeded) {
           En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
           En.P.x+=ri.x*fwallx(ri.x)+(L-ri.x)*fwallxL(L-ri.x); }
         loop (j,i+1,N) {
           rt.x=ri.x-r[j].x; rt.y=ri.y-r[j].y;
           ff=f(Sqr(rt.x)+Sqr(rt.y));
-          if (method==MTK) {
+          if (Pneeded) {
             En.P.x+=Sqr(rt.x)*ff;
             En.P.y+=Sqr(rt.y)*ff; }
           a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
@@ -836,7 +912,7 @@ void MDstep(void) /************************************************** MDstep */
       if (ss.C2<Lh)
         loop (i,0,N) {
           ri=r[i];
-          if (method==MTK)
+          if (Pneeded)
             En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
           loop (j,i+1,N) {
             rt.x=ri.x-r[j].x;
@@ -844,7 +920,7 @@ void MDstep(void) /************************************************** MDstep */
             if (rt.x<-Lh) rt.x=rt.x+L;
             rt.y=ri.y-r[j].y;
             ff=f(Sqr(rt.x)+Sqr(rt.y));
-            if (method==MTK) {
+            if (Pneeded) {
               En.P.x+=Sqr(rt.x)*ff;
               En.P.y+=Sqr(rt.y)*ff; }
             a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
@@ -857,7 +933,7 @@ void MDstep(void) /************************************************** MDstep */
                 rt.x=ri.x-r[j].x+L*k;
                 rt.y=ri.y-r[j].y;
                 ff=f(Sqr(rt.x)+Sqr(rt.y));
-                if (method==MTK) {
+                if (Pneeded) {
                   En.P.x+=Sqr(rt.x)*ff;
                   En.P.y+=Sqr(rt.y)*ff; }
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
@@ -877,7 +953,7 @@ void MDstep(void) /************************************************** MDstep */
             if (rt.y<-Lh) rt.y=rt.y+L;
             rr=Sqr(rt.x)+Sqr(rt.y);
             if ( (ff=f(rr)) ) {
-              if (method==MTK) {
+              if (Pneeded) {
                 En.P.x+=Sqr(rt.x)*ff;
                 En.P.y+=Sqr(rt.y)*ff; }
               if (method==VICSEK) {
@@ -899,11 +975,12 @@ void MDstep(void) /************************************************** MDstep */
               loopto (l,-nimg,nimg) {
                 rt.y=ri.y-r[j].y+L*l;
                 ff=f(Sqr(rt.x)+Sqr(rt.y));
-                if (method==MTK) {
+                if (Pneeded) {
                   En.P.x+=Sqr(rt.x)*ff;
                   En.P.y+=Sqr(rt.y)*ff; }
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
                 a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } } } }
+
 
   if (method==LANGEVIN || method==VICSEK) {
     /* random force by the fluctuation-dissipation theorem */
@@ -922,7 +999,7 @@ void MDstep(void) /************************************************** MDstep */
   if (method==NOSE_HOOVER || method==MTK) {
     /* velocity predictor TRVP(k=1,2)
        see J. Chem. Theory Comput. 2011, 7, 3596 [doi.org/10.1021/ct200108g]
-       @* below refer to the MACSIMUS code (in 3D) and manual */
+       Codes @* below refer to the MACSIMUS code and manual */
 
 #if TRVP==1
     Vf=xivpred=1.5*xiv-0.5*xivlast; // @4
@@ -987,7 +1064,7 @@ void MDstep(void) /************************************************** MDstep */
 
   En.momentum.x/=N; En.momentum.y/=N; // = averaged velocity, also for Vicsek
   // remove total momentum - does not have to be done every step...
-  if (method>=NVE && method<=NOSE_HOOVER || method>=BUSSI && method<+MTK) {
+  if (method>=NVE && method<=NOSE_HOOVER || method>=BUSSI && method<=MTK) {
     if (bc==PERIODIC) loop (i,0,N) {
         v[i].x-=En.momentum.x;
         v[i].y-=En.momentum.y; }
@@ -1013,6 +1090,11 @@ Switching to Metropolis Monte Carlo...");
   En.Ek.x*=En.q.x/2; En.Ek.y*=En.q.y/2; // corrected for kinetic pressure tensor
   Tk=2*En.Ekin/En.Nf; // Tk=2*Ekin/Nf
 
+  if (Pneeded) {
+    /* En.Ek.x,En.Ek.y already scaled above, for MTK En.q.x=En.q.x=1 anyway */
+    En.P.x=(En.Ek.x+En.P.x)/Sqr(L);
+    En.P.y=(En.Ek.y+En.P.y)/Sqr(L); }
+
   double xikin,xipot,lakin; // mostly for debugging (but does not hurt)
 
   /* MTK and NOSE_HOOVER extended masses: */
@@ -1023,12 +1105,12 @@ Switching to Metropolis Monte Carlo...");
 
     case MDNPT: {
       /* BERENDSEN barostat */
-      double Ptr=(En.P.x+En.P.y)/2; // P_cfg calculated between sweeps (NOT every step)
       double rho=L2rho(L);
       /* rough estimate of bulk modulus: */
       double B=(EOS(T,rho+1e-2)-EOS(T,rho-1e-2))/2e-2;
 
-      ff=exp(dt*(Ptr-P)/(B*tau*qtau)); /* tau.P = tau*qtau, cf. MTK */
+
+      ff=exp(dt*((En.P.x+En.P.y)/2-P)/(B*tau*qtau)); /* tau.P = tau*qtau, cf. MTK */
       if (L*ff>1e10) ff=1; // added in 12/2021
       L*=ff; Lh=L/2;
       sliders.rho->value(log(L2rho(L)));
@@ -1082,10 +1164,6 @@ Switching to Metropolis Monte Carlo...");
 
     case MTK:
       /* Pcfg calculated every step - finished here */
-
-      /* En.Ek.x,En.Ek.y already scaled, but En.q.x=En.q.x=1 anyway */
-      En.P.x=(En.Ek.x+En.P.x)/Sqr(L);
-      En.P.y=(En.Ek.y+En.P.y)/Sqr(L);
 
       xikin=M_T*Sqr(xiv/2); // 1/2 of leap-frog kin. energy of xi
       // 2*M_P was wrong (or M_P rescaled), see macsimus/history.txt
@@ -1298,10 +1376,11 @@ void MCsweep(void) /************************************************ MCsweep */
 
     if (rnd()<exp(Lf*(2*N)-(P*Sqr(L)*(ff-1)+deltaU)/T)) {
       /*
-         This is for NPT ensemble with measure mu=1/V,
+         This is for NPT ensemble with volume measure mu=1/V,
          which is compatible with MTK (with conserved momentum).
          See https://doi.org/10.1063/5.0193281 for details.
-         [for mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N)]
+         (For mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N) 
+         in the formula above.)
       */
       Vaccepted++;
       if (isdauto) {
@@ -1335,7 +1414,7 @@ void art(void) /******************************************************** art */
   int i;
 
   if (isMD(method)) phase/=dt;
-  
+
   loop (i,0,N) {
     phase=fmod(phase+2*PI*i/N,2*PI);
 

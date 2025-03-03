@@ -244,7 +244,7 @@ the minimum c=%g will be used.",(double)MINCUT);
     default:
       
       fl_alert("Wrong force field.");
-      sleep(4);
+      usleep(4000000);
       exit(0); }
       
   calculateB2(); // change vs rg
