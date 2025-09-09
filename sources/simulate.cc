@@ -5,7 +5,7 @@
 class Simulate : public Fl_Box /////////////////////////////////////// Simulate
 {
 private:
-  void get_data () {
+  void get_data () { // read slider/buttons, rescale cfg if L changes etc.
     int i;
     static double lastT;
 
@@ -27,7 +27,7 @@ private:
     else gravity=sliders.g->value();
 
     //    fprintf(stderr,"sliders.c=%g ss.C2=%g\n",sliders.c->value(),ss.C2);
-    
+
     if (method==VICSEK && sliders.c->value()!=ss.C2)
       setss(ss.ff,sliders.c->value());
 
@@ -65,7 +65,7 @@ private:
       if (L2rho(L)<MINRHO) {
         rho2L(MINRHO);
         sliders.rho->value(log(L2rho(L))); } */
-      
+
       Lh=L/2;
 
       // rescale cfg if L has changed
@@ -82,10 +82,9 @@ private:
     setwalls();
   }
 
-  void norm() {
+  void norm() { // out-of-box normalization or error for MD+wall
     int i;
 
-    /* out-of-box normalization, error for MD+wall */
     loop (i,0,N) {
       if ((r[i].x<=0) || (r[i].x>=L)) {
         if (isMD(method) && (bc==BOX)) {
@@ -103,14 +102,15 @@ private:
         while (r[i].y>L) r[i].y-=L; } }
   }
 
-  void meas() {
+  void meas() { // measurements done every stride
     int i,j,k,l;
     unsigned ih;
     vector ri,rt;
 
     /* calculate virial pressure and RDF, by stride
        NB: in MD, Ekin is be known AFTER a MD step has finished
-       NB: MSD calculated at the last block */
+       NB: MSD calculated at the last block
+       MB: with MTK, pressure has to be calcutated every step */
     En.Upot=0;
     En.P=zero; /* P=sum r*f = -virial */
     En.fwx=En.fwxL=En.fwy=En.fwyL=0;
@@ -199,21 +199,30 @@ private:
     En.fwyL/=L;
   }
 
-  void draw() { // in addition to drawing, all calculations are called from here
+  void draw() { // drawing and all calculations called from here
     int i;
     double V=0; // to suppress warning uninitilized
 
     get_data();
+
     if (run->value()) {
+
+      /* set up ncell, do not change in a cycle */
+      if (ss.autoncell) ss.ncell=autoncell(N);
+
       loop (i,0,speed.stride) {
-        int Pneeded=0; // for MDNPT: not needed unless the last step 
+        int Pneeded=0; // for MDNPT: not needed unless the last step
 
         if (i==speed.stride-1) {
-          /* measurements BEFORE the last cycle so that Ekin is in sync
-             with En.Upot AFTER this loop has finished */
+          /* The LAST MD step or MC sweep:
+             Measurements are performed BEFORE it so that Ekin is in sync with
+             En.Upot AFTER this stride-loop has finished and the the total
+             energy reported is relevant.
+             Otherwise, Tkin|Tbag are averages over all steps|sweeps
+             and are collected elsewhere. */
 
-          // since 03/2025, ALWAYS measured (in the last step of a sweep)
-          meas();
+          meas(); // since 03/2025, ALWAYS measured
+
           sum.P.x+=En.P.x;
           sum.P.y+=En.P.y;
           sum.fwx+=En.fwx;
@@ -224,23 +233,22 @@ private:
           V=N/L2rho(L);
           sum.V+=V; /* some corrections for not PERIODIC */
           sum.U+=En.Upot;
-          if (method<=MCNPT) {
+          if (isMC(method)) {
             /* the current bag + En.Upot is constant for CREUTZ */
             Econserved=En.Upot+bag;
-            sum.Econserved+=Econserved;
-            sum.Ekin+=bag; } }
+            sum.Econserved+=Econserved; } }
 
-        if (isMD(method)) {
+        if (isMD(method))
           MDstep(Pneeded);
-          sum.Tk+=Tk/speed.stride; }
         else {
           accepted=Vaccepted=0;
           MCsweep();
           sum.accr+=(double)accepted/(N*speed.stride);
           sum.Vaccr+=(double)Vaccepted/speed.stride; }
+        sum.Tk+=Tk/speed.stride; // Tkin or Tbag averaged
       } // speed.stride
 
-      /* last cycle finished, both En.Upot and Ekin are in sync */
+      /* last step a sweep finished, both En.Upot and Ekin are in sync */
       if (method==NVE) {
         Econserved=En.Upot+En.Ekin;
         sum.Econserved+=Econserved; }
@@ -251,9 +259,8 @@ private:
         En.H=En.Upot+En.Ekin+(En.P.x+En.P.y)*V/2;
 
       sum.H+=En.H;
-
-      if (isMD(method))
-        sum.Ekin+=En.Ekin;
+      sum.Ekin+=En.Ekin;
+      
       if (method==NOSE_HOOVER || method==MTK)
         sum.Econserved+=Econserved+En.Upot;
 
@@ -279,14 +286,13 @@ private:
 
     norm();
 
-    if (run->value() && drawmode->value()<3) {
-      // draw background
+    if (run->value() && drawmode->value()<3) { // draw simulation cell
       enum colormode_e cmode=(colormode_e) colormode->value();
       static int boxsize=BOXSIZE; // size of the box in pix (will change)
 
       if (cmode==0) { molblack(); cmode=CM_KEEP; colormode->value(cmode); }
 
-      if (drawmode->value()==0) Fl_Box::draw();
+      if (drawmode->value()==0) Fl_Box::draw(); // movie = clear the box
 
       shownbrs=0;
       switch (cmode) {
@@ -316,7 +322,7 @@ private:
           break; }
 
       fl_color(FL_WHITE);
-      if (drawmode->value()==1) /* traces */
+      if (drawmode->value()==1) // traces = clear random pixels
         loop (i,0,Sqr(boxsize)/trace)
           fl_point(rnd()*boxsize+BORDER,rnd()*boxsize+MENUH+BORDER);
 
@@ -379,9 +385,15 @@ private:
       loop (i,1,N) if (molcol[i]!=molcol[0]) { cmode=CM_YSPLIT; break; }
       if (cmode==CM_BLACK) fl_color(molcol[0]);
 
+      // Use circle=0 (faster but less precise) disk drawing method 
+      // is the box is periodic in x and L>10 and slow circle=2 is used
+      circle.opt=circle.method;
+      if (speed.fast && circle.method==2) circle.opt=0;
+      if (L<=10 || bc==BOX) circle.opt=circle.method;
+
       // draw molecules
       if (rad==0)
-        // pixel
+        // 1 pixel
         loop (i,0,N) {
           int xx=r[i].x*scale+BORDER+0.5;
           int yy=r[i].y*scale+BORDER+MENUH+0.5;
@@ -399,14 +411,14 @@ private:
           fl_point(xx,yy+1);
           fl_point(xx,yy); }
       else {
-        if (circlemethod==0) {
+        if (circle.opt==0) {
           // use library disk functions, integer positions
           loop (i,0,N) {
             int xx=r[i].x*scale+BORDER+0.5;
             int yy=r[i].y*scale+BORDER+MENUH+0.5;
             if (cmode) fl_color(molcol[i]);
             fl_pie(xx-rad,yy-rad,rad*2,rad*2,0.0,360.0); } }
-        else if (circlemethod==1) {
+        else if (circle.opt==1) {
           // library circle, double float positions (more precise, slower)
           loop (i,0,N) {
             double xx=r[i].x*scale+BORDER;
@@ -463,7 +475,7 @@ private:
                 else
                   fl_line(jj,yy-ss+1, jj,yy+ss);
               } }
-        } // circlemethod
+        } // circle
       } } // draw simulation cell
 
     // usleep(speed.extradelay);
@@ -471,32 +483,34 @@ private:
     fl_line_style(FL_SOLID,0,NULL);
     wasMDerror=0;
     if (errmessage) {
-      int atx=BORDER+6,aty=BORDER+MENUH+35;
+      //      int atx=BORDER+6,aty=BORDER+MENUH+35;
+      int atx=BOXSIZE+BORDER+6,aty=MENUH;
 
       fl_color(OI_YELLOW);
-      fl_rectf(BORDER,BORDER+MENUH,640,90);
-      fl_font(FL_HELVETICA,32);
+      fl_rectf(atx,aty,PANELW,72);
+      // fl_rectf(BORDER,BORDER+MENUH,640,90);
+      fl_font(FL_HELVETICA,25);
+      atx+=5; aty+=28;
       fl_color(OI_RED);
       // see Fl::repeat_timeout() below
       if (errmessage==MDFAILED) {
         wasMDerror++;
-        fl_draw("Molecular Dynamics failed!",atx,aty); aty+=40;
+        fl_draw("Molecular Dynamics failed!",atx,aty); aty+=30;
         fl_draw("Switching temporarily to Monte Carlo…",atx,aty); }
       else if (errmessage==MSDFAILED) {
-        fl_draw("Cannot follow periodic b.c.!",atx,aty); aty+=40;
+        fl_draw("Cannot follow periodic b.c.!",atx,aty); aty+=30;
         fl_draw("MSD turned off for now…",atx,aty); }
       else {
-        fl_draw("Too low density in NPT ensemble!",atx,aty); aty+=40;
+        fl_draw("Too low density in NPT ensemble!",atx,aty); aty+=30;
         fl_draw("Switching to Metropolis MC…",atx,aty); }
       fl_font(FL_HELVETICA,16);
       fl_color(FL_BLACK); }
   }
 
-  static void timer_callback(void *userdata) {
+  static void timer_callback(void *userdata) { //////////////// timer_callback
     Simulate *sim = (Simulate*)userdata;
-    static double tcycle=1/speed.FPS;
-    clock_t c0=clock();
 
+    // show/hide sliders as needed
     if (isMC(method) && !setd->value())
       sliders.d->show();
     else
@@ -529,25 +543,25 @@ private:
         buttons.wallx->show();  buttons.shift_left->hide();
         buttons.wallxL->show(); buttons.shift_right->hide();
         buttons.wally->show();  buttons.shift_up->hide();
-        buttons.wallyL->show(); buttons.shift_down->hide(); 
+        buttons.wallyL->show(); buttons.shift_down->hide();
         buttons.invertwalls->show();
         sliders.g->show();
         sliders.c->hide();
         break;
       case SLIT:
-        buttons.wallx->hide();  buttons.shift_left->show(); 
+        buttons.wallx->hide();  buttons.shift_left->show();
         buttons.wallxL->hide(); buttons.shift_right->show();
-        buttons.wally->show();  buttons.shift_up->hide();   
-        buttons.wallyL->show(); buttons.shift_down->hide(); 
+        buttons.wally->show();  buttons.shift_up->hide();
+        buttons.wallyL->show(); buttons.shift_down->hide();
         buttons.invertwalls->show();
         sliders.g->show();
         sliders.c->hide();
         break;
       case PERIODIC:
-        buttons.wallx->hide();  buttons.shift_left->show(); 
+        buttons.wallx->hide();  buttons.shift_left->show();
         buttons.wallxL->hide(); buttons.shift_right->show();
-        buttons.wally->hide();  buttons.shift_up->show();   
-        buttons.wallyL->hide(); buttons.shift_down->show(); 
+        buttons.wally->hide();  buttons.shift_up->show();
+        buttons.wallyL->hide(); buttons.shift_down->show();
         buttons.invertwalls->hide();
         sliders.g->value(0);
         sliders.g->hide();
@@ -555,20 +569,20 @@ private:
         else sliders.c->hide();
         break; }
 
+    // see also button g=0
     if (fabs(sliders.g->value())<0.0017) sliders.g->value(0);
 
-    // requires periodic b.c. but shown
-
+    // (re)draw everything
     sim->redraw(); // → sim->draw() = all calculations and molecule drawing
     panel->infopanel->redraw();
     panel->resultpanel->redraw();
-    if (printcmd[0]) panel->buttonpanel->expertpanel->redraw(); /* because of printcmd */
+    if (printcmd[0]) panel->buttonpanel->expertpanel->redraw(); // because of printcmd
     menu->redraw();
 
     files.record=buttons.record->value();
 
 #if 0 // OLD
-    /* this sets t=0 for the whole 1st block */
+    /* this sets t=0 for the whole 1st block -- why? */
     if (files.record && head==NULL) t=0;
 #endif
 
@@ -585,7 +599,6 @@ private:
 
     files.record0=files.record;
 
-    //    fprintf(stderr,"draw: head=%p %g record=%d\n",head,t,files.record);
     if (!files.record && head) {
       /* just turned off */
       files.record=showclearM();
@@ -594,24 +607,19 @@ private:
     Fl::flush();
     //    Fl::check();
 
-    if (debug) fprintf(stderr,"                                          timeout repeated at %.4f\n",mytime());
+    if (debug) {
+      static double last;
+      double t=mytime();
+      fprintf(stderr,"repeat_timeout:%25.6f %9.6f %9.6f %4.2f\n",t-last,speed.timerdelay,t,(t-last)/speed.timerdelay);
+      last=t; }
 
-    /* info message red-on-yellow pops up for 2.5 s */
+    /* info message red-on-yellow pops up for 2 s */
     if (errmessage) {
+      lasterrmessage=errmessage; // passes to the top right panel
       errmessage=NOERROR;
-      Fl::repeat_timeout(2.5, timer_callback, userdata); }
-    else {
-      double t=(clock()-c0)/(double)CLOCKS_PER_SEC;
-
-      if (t>2*tcycle) tcycle*=2;
-      else if (t<0.5*tcycle) tcycle*=0.5;
-      else tcycle=sqrt(tcycle*sqrt(tcycle*t));
-      /* tcycle is the estimated CPU time of 1 cycle, smoothed */
-      //      fprintf(stderr,"tcycle=%g\n",tcycle);
-      // calculate the timeout: the minimum is speed.MINTIMEOUT/speed.FPS
-      t=speed.timerdelay-tcycle;
-      if (t<speed.MINTIMEOUT/speed.FPS) t=speed.MINTIMEOUT/speed.FPS;
-      Fl::repeat_timeout(t, timer_callback, userdata); }
+      Fl::repeat_timeout(2, timer_callback, userdata); }
+    else
+      Fl::repeat_timeout(speed.timerdelay, timer_callback, userdata);
   }
 
 public:

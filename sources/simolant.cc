@@ -2,7 +2,7 @@
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
 // g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "02/2025"
+#define VERSION "04/2025"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>
@@ -29,7 +29,6 @@
 #define PI M_PI // needed in rndetc.c (#included from rndgeni.c)
 #include "rndgeni.c"
 
-//#define PANELW 392       // right panel width (needs tinkering if changed)
 #define PANELW 480       // right panel width (needs tinkering if changed)
 #define MENUH 24         // top menu height (reasonable range 20..30)
 #define INFOPANELH 92    // height of the top panel with N=, ensemble, parameters
@@ -44,6 +43,7 @@
 // default geometry
 #define INITGEOMETRY_Y (INFOPANELH+RESULTPANELH+BUTTONPANELH+MENUH)
 #define INITGEOMETRY_X (INFOPANELH+RESULTPANELH+BUTTONPANELH+PANELW)
+#define MAXNCELL 34
 
 // Okabe and Ito color-blind-safe palette
 // https://www.nceas.ucsb.edu/sites/default/files/2022-06/Colorblind%20Safe%20Color%20Schemes.pdf
@@ -62,6 +62,11 @@
 #define RNBR 1.55 // range for neighbors, good for 2D LJ
 #define CUTOFF 4 // default cutoff (applies for 2D LJ)
 
+// parameter value normalized to range [FROM,TO]
+#define BRACKETVAL(VAL,FROM,TO) do { \
+  if (VAL<FROM) VAL=FROM; \
+  if (VAL>TO) VAL=TO; } while(0)
+
 enum ff_e {LJ,WCA,PD,DW,NFF};
 /*
    LJ  = 2D Lennard-Jones, 4/r^8-4/r^4, smoothly truncated
@@ -71,8 +76,9 @@ enum ff_e {LJ,WCA,PD,DW,NFF};
    NFF = undef, sentinel
 */
 
+typedef double (*function_t)(double r); // for potential() and forces()
+
 struct ss_s {
-  enum ff_e ff=NFF; // force field
   double C1;        // smooth cutoff from C1 to C2=c
   double C2=CUTOFF; // cutoff=c, from cmd: and -P
   double C1q;       // C1^2
@@ -86,7 +92,24 @@ struct ss_s {
   double rnbrq=Sqr(RNBR);
   double P[5];      // DW forces expansion, see Penrose.mw - two minima
   double B2;        // 2nd virial coefficient for given thermostat parameter T
+  double Clc;       // linked-cell list: see MCNPT (might be a tiny bit < C2)
+  double rrscale;   // for MCNPT
+  double DeltaU;    // for MCNPT
+  function_t lcfunc;// linked-cell list: function passed to lc() 
+  enum ff_e ff=NFF; // force field
+  int ncell=0;      // for linked-cell list
+                    // ncell=0 automatic setup
+                    // ncell=1 direct pair sum
+                    // ncell>1 linke-cell list, ss.Clc<=L/2 required
+  int autoncell=1;  // 1 if ncell should be automatically determined
 } ss;
+
+static
+int autoncell(int N) /******************************************** sutoncell */
+{
+  if (N<57) return 1;
+  else return sqrt(N)/3+0.5;
+}
 
 // some global variables collected here
 struct files_s {
@@ -132,8 +155,29 @@ static int fl_ask1(const char *fmt,const char *arg) /*************** fl_ask1 */
   return !fl_choice(fmt,"Yes","No",0,arg);
 } // fl_ask1()
 
+/* MESS IN DECLARATIONS -- to be cleaned */
+typedef struct {
+  double x,y;
+} vector;
+
+typedef struct linklist_s { /* 64 B = cache line */
+  vector r;      /* site position physically here (periodic b.c. optimizing) */
+  vector *f;     /* forces (indirected - see MACSIMUS for other options) */
+  vector *v;     /* original velocities for Vicsek */
+  vector *vnew;  /* new velocities for Vicsek = vllast+i */
+  double *wnbrs; /* for Vicsek */
+  int i;         /* atom number (debug only) */
+  int padding;   /* sizeof(linklist_t)=64 (padded anyway on 64b architecture) */
+  struct linklist_s *next;
+} linklist_t;
+
+typedef void DO_f(linklist_t *l);
+DO_f debuglc;
+void lc(DO_f DO);
+
 #include "speed.cc"
 #include "calculate.cc"
+#include "linklist.cc"
 #include "callbacks.cc"
 #include "record.cc"
 
@@ -271,11 +315,12 @@ int main(int narg,char **arg) /**************************************** main */
   enum cfg_t init=GAS;
   char *optionP=NULL;
 
+  //  fprintf(stderr,"sizeof(linklist_t)=%ld\n",sizeof(linklist_t));
+  
   if (narg==2 && arg[1][0]!='-') fn=arg[1]; // single argument
   else for (iarg=0; iarg<narg; iarg++) {
     if (arg[iarg][0]=='-' && isupper(arg[iarg][1]))
       switch (arg[iarg][1]) {
-        case 'C': circlemethod=atoi(arg[iarg]+2); break;
         case 'D': debug=atoi(arg[iarg]+2); if (!debug) debug=1; break;
         case 'F': speed.FPS=atof(arg[iarg]+2); break;
         case 'I': fn=arg[iarg]+2; init=(enum cfg_t)atoi(arg[iarg]+2); break;
@@ -286,27 +331,21 @@ int main(int narg,char **arg) /**************************************** main */
           files.ext=files.protocol+strlen(files.protocol);
           break;
         case 'P': optionP=arg[iarg]+2; break;
-        case 'S': speed.init=atof(arg[iarg]+2); break;
         case 'T': speed.MINTIMEOUT=atof(arg[iarg]+2); break;
         case 'U': speed.extradelay=(int)(atof(arg[iarg]+2)*1e6+0.5); break;
         case 'Z': SEED=atoi(arg[iarg]+2); break;
         default: fprintf(stderr,"\
 SIMOLANT " VERSION " options (NO SPACE BEFORE NUMBER):\n\
   <FILE>     (NAME.sim) open sim-file on start (single argument only)\n\
-  -C<CIRCLE> circle drawing method:\n\
-             0=fl_pie  1=fl_circle  2=composed of fl_line [default=2]\n\
   -D<CYCLES> debug mode (timing and technical info printed every CYCLES)\n\
              disabled in Windows (recompile with -mconsole)\n\
   -D         the same as -D1\n\
-  -F<FPS>    frames per second of movies (if possible) [default=%g]\n\
+  -D-1       debug linked-cell list method\n\
   -h         get help on lowercase FLTK options\n\
   -I<INIT>   start, see menu Prepare system for numbers [default=0=Gas]\n\
-  -N<N>      number of particles (deprecated, use -PN=<N>)\n\
+  -N<N>      number of particles (the same as -PN=<N>)\n\
   -P<LIST>   comma-separated parameter list, the same as for input field \"cmd:\"\n\
              performed after -I, -N\n\
-  -S<SPEED>  initial value of the simulation speed slider [default=%g]\n\
-             SPEED>=1: stride, SPEED<1: stride=1+add delays\n\
-  -T<FACTOR> timer at least FACTOR of the sim. cycle duration [default=%g]\n\
   -U<DELAY>  delays in s added, use if the widgets are lazy [default=%g]\n\
   -Z<SEED>   random number seed; default=0=time\n\
 In case of multiple instances of the same option, the last one applies.\n\
@@ -314,8 +353,8 @@ FLTK options are in lowercase and with a space before a number, get them by:\n\
   simolant -x\n\
 Do not change too much the default geometry -g %dx%d\n\
 EXAMPLE:\n\
-  simolant -g 1080x775 -I7 -PN=600,g=-0.02,tau=0.5\n\
-",speed.FPS,speed.init,speed.MINTIMEOUT,speed.extradelay,INITGEOMETRY_X,INITGEOMETRY_Y);
+  simolant -g 1150x700 -I7 -N600 -Pg=-0.02,tau=0.5\n\
+",speed.extradelay,INITGEOMETRY_X,INITGEOMETRY_Y);
           if (!fltkoptions) exit (0);
       }
     else {

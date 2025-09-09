@@ -7,8 +7,9 @@
 */
 
 #define MAXN 3000     // max # of atoms: static arrays used
-#define MINRHO 0.03   // NUCLEATION: 0.04
-#define MAXRHO 1.1
+#define MINRHO 0.01   // for slider (NUCLEATION 0.04, isotherms 0.01)
+#define MAXRHO 1.13   // for slider
+#define MINRHONPT 1e-5// for MCNPT and MDNPT(Berendsen)
 #define PROBDMAX 0.03 // of long MC move, default
 #define MAXDV 0.25    // max dV: box scaling is max exp(MAXDV)
 // the N-slider is cubic (not logarithmic nor linear)
@@ -18,7 +19,7 @@
 #define MINT 0.1 // minimum temperature
 #define MAXT 5 // maximum temperature
 
-#define MINP 0 // minimum pressure
+#define MINP 0.001 // minimum pressure
 #define MAXP 2 // maximum pressure
 
 #define MING -0.2 // minimum gravity
@@ -39,10 +40,6 @@
 #define SIMVARS   N,bc,walls,T,L,walldens,dt,d,method,P,dV,tau,qtau,gravity,ss.a,ss.b,ss.C2
 #define SIMVARSQ "N bc walls T L wall dt d method P dV tau qtau g a b c"
 
-typedef struct {
-  double x,y;
-} vector;
-
 vector zero={0,0};
 
 double gravity;  /* acceleration of gravity */
@@ -54,8 +51,8 @@ double T=3; /* temperature as NVT parameter */
 double P=1; /* pressure as NPT parameter */
 double qtau=5; /* tauP/tau, for Berendsen and MTK barostat */
 double dropvel=1; /* velocity for function TWODROPS */
-double Tk; /* Tk=kinetic T (MD) or demon T (Creutz MC) */
-double bag; /* Creutz daemon bag: static */
+double Tk; /* Tk = averaged kinetic T (MD) or demon T (Creutz MC) */
+double bag; /* Creutz daemon bag */
 double d=0.5; /* MC displacement, in Lh=L/2 */
 double dV=0.1; /* MC volume displacement, relative (=in ln(L)) */
 double t=0; /* MD time or MC steps (for CP only) */
@@ -71,7 +68,10 @@ double lambdav,lambdavlast,lambdavllast,lambdavpred; /* MTK ln(L) */
 double Econserved; /* total energy incl. extended degrees of freedom */
 int justreset=1; /* reset scaling of energy convergence profile */
 int debug=0; /* verbose debug mode */
-int circlemethod=2; /* 0=fl_pie  1=fl_circle  2=custom of fl_line */
+struct circle_s {
+  int method=2; /* 0=fl_pie  1=fl_circle  2=custom of fl_line */
+  int opt=2; /* locally may use faster method for speed */
+} circle;
 int iblock,block; // also slider (stride moved to speed.stride)
 int nimg; // for cutoff>Lh: number of images
 double trace=64; // length for draw mode Traces
@@ -89,9 +89,16 @@ int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selecte
 #define MSDFAILED 3
 int errmessage=NOERROR;
 #else
-// this line issues ERROR "expected identifier before {" on Windows:
+// this line causes ERROR "expected identifier before {" on Windows:
 enum errmessage_e {NOERROR,MDFAILED,NPTFAILED,MSDFAILED} errmessage=NOERROR;
 #endif
+int lasterrmessage=NOERROR;
+
+typedef double (*function_t)(double r); // for potential() and forces()
+void MDlcPneeded(linklist_t *l);
+void MDlc(linklist_t *l);
+void MDlcVicsek(linklist_t *l);
+void MCNPTlc(linklist_t *l);
 
 int wasMDerror; // previously MDFAILED - to break "Switching temporarily to Monte Carlo…" loop
 
@@ -103,7 +110,6 @@ enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_ART,CM_
 #define isNVE(method) (method==CREUTZ || method==NVE)
 
 enum bctype {BOX,SLIT,PERIODIC} bc=BOX; // boundary conditions
-typedef double (*function_t)(double r); // for potential() and forces()
 
 // NB: order important - >= used
 enum cfg_t {GAS,DIFFUSION,GRAVITY,
@@ -123,19 +129,19 @@ double dt=0.02,dtadj=0.02,dtfixed; /* MD timestep, adaptive version, fixed */
 struct En_s {
   vector P;  // diagonal components of the pressure tensor, P_cfg
              // (first, the virial only, then the kin part is added)
-  vector Ek; // ∑ vx², ∑ vy², then corrected by qx,qy
+  vector Ek; // ∑ vx², ∑ vy², then corrected by qx,qy and 1/2
   double Ekin; // total kinetic energy = (Ek.x+Ek.y)/2
   vector q; // kinetic pressure corrections:
             //   En.Ek*=En.q; P=(virial+Ek)/L² (diagonal terms)
-  double fwx,fwxL,fwy,fwyL; /* direct pressure on walls */
+  double fwx,fwxL,fwy,fwyL; // direct pressure on walls
   double Upot; // potential energy
   double H; // enthalpy
   vector momentum; // averaged total momentum (velocity), good for Vicsek
   vector MSD; // mean square displacement
-  int Nf; // see degrees_of_freedom()
+  int Nf; // see degrees_of_freedom(); 1 for MC (1 degree of Creutz's bag)
 } En; // similar as in MACSIMUS
 
-/* 
+/*
   What to show in the right top panel, see menu Show.
   Option NONE was removed in V03/2025, former name measure was changed to Show;
   note that lowercase show collides with a member function show().
@@ -148,7 +154,7 @@ const char *Showinfo[NSHOW]={"Quantities","Energy","Temperature","Pressure","Vol
 /* for mean values over blocks - sums accumulated using addM() */
 struct sum_s {
   vector P; // diagonal of pressure tensor
-  double U,Ekin,Tk,V,H,Econserved;
+  double U,Ekin,Tk,V,H,Econserved;  // Tk → Tbag for MC
   double fwx,fwxL,fwy,fwyL; // forces on walls
   double accr,Vaccr; // acceptance ratios in MC
   double MSD; // MSD from r0, averaged over N
@@ -165,15 +171,20 @@ int measureVar; // number of measurements in sumq
 
 #include <sys/time.h>
 
-/* real time in better resolution (10^-6 s if provided by the system) */
+/* real time in s with better resolution (10^-6 s if provided by the system) */
 double mytime(void) /************************************************ mytime */
 {
   struct timeval tv;
   struct timezone tz;
+  static double t0;
+  double t;
 
   gettimeofday(&tv,&tz);
 
-  return (unsigned)tv.tv_usec/1e6+tv.tv_sec;
+  t=(unsigned)tv.tv_usec/1e6+tv.tv_sec;
+  if (!t0) t0=t;
+
+  return t-t0;
 }
 
 inline
@@ -187,9 +198,13 @@ double sqr(double x) /************************************************** sqr */
 /* the number of mechanical degrees of freedom, conserved momenta not included */
 void degrees_of_freedom() /****************************** degrees_of_freedom */
 {
-  En.Nf=2*N;
   En.q.x=En.q.y=1;
-  if (!isMC(method) && method!=ANDERSEN && method!=LANGEVIN && method!=VICSEK && method!=MAXWELL)
+  if (isMC(method)) {
+    En.Nf=N; // 1 for Creutz's bag * N attempted moves in a sweep
+    return; }
+  
+  En.Nf=2*N;
+  if (method!=ANDERSEN && method!=LANGEVIN && method!=VICSEK && method!=MAXWELL)
     switch (bc) {
       case BOX: break;
       case SLIT:
@@ -199,12 +214,6 @@ void degrees_of_freedom() /****************************** degrees_of_freedom */
         En.q.x=En.q.y=(double)N/(N-1);
         En.Nf=2*N-2; break; }
   if (method==MTK) En.q.x=En.q.y=1;
-}
-
-/* very approximate EOS for MDNPT (Berendsen barostat) */
-double EOS(double T,double rho) /*************************************** EOS */
-{
-  return T*rho + (exp(2*pow(rho,1.2))-1);
 }
 
 /* attractive walls: site-wall potential */
@@ -388,6 +397,7 @@ void MDreset(method_e th) /***************************************** MDreset */
   int i;
 
   method=th;
+
   loop (i,0,N) randomv(i,vv);
 
   if (method==NOSE_HOOVER || method==MTK) {
@@ -422,7 +432,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   mcstart=40;
 
   lastShow=NSHOW; // to reset the graph
-  
+
   Show=RDF;
   tau=1;
   colormode->value(CM_BLACK); // black
@@ -557,7 +567,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       /* initial random configuration, low density */
       bc=PERIODIC;
       Show=RDF;
-      L=rho2L(0.8); Lh=L/2;
+      L=rho2L(0.73); Lh=L/2;
       loop (i,0,N) {
         r[i].x=rnd()*L; r[i].y=rnd()*L; }
       T=0.7;
@@ -818,38 +828,46 @@ void MDerror(void) /************************************************ MDerror */
 
 void debugtimer(const char *info) /****************************** debugtimer */
 {
-  static int ns=0;
-  static unsigned last;
+  static int step=0;
+  static clock_t last;
   static double mylast;
 
-  if (ns==0) {
+  if (step==0) {
     fprintf(stderr,"\n\
 timing (all times are in s):\n\
-* speed: slider \'simulation speed\' value\n\
-* timer (frame delay): use slider \'simulation speed\'\n\
-* stride=MDsteps/display: use slider \'simulation speed\' (to right)\n\
-* block: use slider \'measurement block\'\n");
-    fprintf(stderr,"SIM nsteps clockstep tvstep  dispstep  timer stride block speed   abstime\n");
+* MM = MC|MD\n\
+* st = stride (slider simulation speed)\n\
+* bk = block\n\
+* speed = speed slider value (is recalculated to delay/stride)\n\
+* step = counter\n\
+* clock-prev = clock() - previous value of clock()\n\
+* wall-prev = real (wall) time - previous value\n\
+  with repeat_timeout: exp-like running average\n\
+* to = timeout\n\
+* avclk = averaged clock-prev over 1 block\n\
+* abstime = tome (from 0) of repeat_timeout\n\
+* wall/timer = wall_time / timer_value\n");
+    fprintf(stderr,"MMst.bk speed step  clock-prev wall-prev  to|avclk  abstime wall/timer\n");
     mylast=mytime();
     last=clock(); }
-  else if (ns%debug==0) {
-    unsigned t=clock();
-    double myt=mytime();
+  else if (step%debug==0) {
+    clock_t t=clock();
+    double myt=mytime(),cl=(double)(t-last)/((double)CLOCKS_PER_SEC*debug);
+    static double avclock=0;
 
-    fprintf(stderr,"%s%6d  %9.6f %9.6f %7.5f   %7.5f  %2d %3d %5.2f %.4f\n",
-            info,
-            ns,
-            (double)(t-last)/((double)CLOCKS_PER_SEC*debug),
-            (myt-mylast)/debug,
-            (myt-mylast)*speed.stride/debug,
-            speed.timerdelay,
-            speed.stride,
-            block,
+    avclock=avclock*0.999+cl*0.001;
+
+    fprintf(stderr,"%s%2d.%02d %5.2f%6d  %9.6f %9.6f %9.6f %9.6f\n",
+            info, speed.stride, block,
             sliders.speed->value(),
+            step,
+            cl,
+            (myt-mylast)/debug,
+            avclock,
             myt);
     last=t;
     mylast=myt; }
-  ns++;
+  step++;
 }
 
 void MDstep(int Pneeded) /******************************************* MDstep */
@@ -861,10 +879,10 @@ void MDstep(int Pneeded) /******************************************* MDstep */
 
   if (method!=MDNPT) Pneeded=0;
   if (method==MTK) Pneeded=1;
-  /* Pneeded = pressure calculated here because it will be needed for a barostat:
+  /* Pneeded = pressure is calculated here because it will be needed for a barostat:
      MTK needs Ptensor calculated every step
-     MDNPT needs Ptensor in the last step of a sweep unless it it is
-           calculated in this step by meas() due to measure condition */
+     MDNPT needs Ptensor in the last step of a sweep unless it is calculated
+     in this step by meas() due to measure condition */
 
   degrees_of_freedom();
   nimg=ss.C2/L+1; // # of replicas if cutoff<Lh
@@ -872,32 +890,48 @@ void MDstep(int Pneeded) /******************************************* MDstep */
   dtadjset();
   dt=dtadj;
 
-  if (method==VICSEK) bc=PERIODIC; // quite ugly...
+  if (method==VICSEK) bc=PERIODIC; // should issue a warning...
+
+  if (Pneeded) En.P=zero; // pressure tensor every step for MDNPT,MTK
 
   /* calculate forces (accelerations) caused by walls and gravity */
   loop (i,0,N)
     if (bc==PERIODIC) {
       a[i].x=a[i].y=0; }
     else {
+      double fw,fwL;
       ri=r[i];
-      a[i].y=fwally(ri.y)-fwallyL(L-ri.y)-gravity;
-      if (bc==BOX) a[i].x=fwallx(ri.x)-fwallxL(L-ri.x);
+      fw=fwally(ri.y);
+      fwL=fwallyL(L-ri.y);
+      a[i].y=fw-fwL-gravity;
+      // gravity not part of the virial
+      if (Pneeded) En.P.y+=ri.y*fw+(L-ri.y)*fwL;
+      if (bc==BOX) {
+        fw=fwallx(ri.x);
+        fwL=fwallxL(L-ri.x);
+        a[i].x=fw-fwL;
+       if (Pneeded) En.P.x+=ri.x*fw+(L-ri.x)*fwL; }
       else a[i].x=0; }
 
-  if (Pneeded) En.P=zero; // pressure tensor every step for MDNPT,MTK
-
   if (method==VICSEK) {
+    /* vllast used for the new velocity */
     memset(vllast,0,sizeof(vllast[0])*N);
     memset(wnbrs,0,sizeof(wnbrs[0])*N); }
 
+  if (ss.C2>Lh) ss.ncell=1;
+
   /* calculate atom-atom pair forces; for MTK also the virial of force */
-  switch (bc) {
+  if (ss.ncell>1) {
+    DO_f *DO = Pneeded ? MDlcPneeded : MDlc;
+    ss.Clc=ss.C2; // might be a tiny bit < C2 to neglect corners
+    if (method==VICSEK) DO=MDlcVicsek;
+    ss.lcfunc=f; // ugly patch, to be polished
+    lc(DO); }
+
+  else switch (bc) { // ss.ncell==1 means direct pair sum
     case BOX:
       loop (i,0,N) {
         ri=r[i];
-        if (Pneeded) {
-          En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
-          En.P.x+=ri.x*fwallx(ri.x)+(L-ri.x)*fwallxL(L-ri.x); }
         loop (j,i+1,N) {
           rt.x=ri.x-r[j].x; rt.y=ri.y-r[j].y;
           ff=f(Sqr(rt.x)+Sqr(rt.y));
@@ -912,8 +946,6 @@ void MDstep(int Pneeded) /******************************************* MDstep */
       if (ss.C2<Lh)
         loop (i,0,N) {
           ri=r[i];
-          if (Pneeded)
-            En.P.y+=ri.y*fwally(ri.y)+(L-ri.y)*fwallyL(L-ri.y);
           loop (j,i+1,N) {
             rt.x=ri.x-r[j].x;
             if (rt.x>Lh) rt.x=rt.x-L;
@@ -981,6 +1013,7 @@ void MDstep(int Pneeded) /******************************************* MDstep */
                 a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
                 a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } } } } }
 
+  //  fprintf(stderr,"wnbrs=%g %g %g ..\n",wnbrs[0],wnbrs[1],wnbrs[2]); exit(0);
 
   if (method==LANGEVIN || method==VICSEK) {
     /* random force by the fluctuation-dissipation theorem */
@@ -1028,7 +1061,8 @@ void MDstep(int Pneeded) /******************************************* MDstep */
       vllast[i]=vlast[i]; vlast[i]=v[i]; } }
 
   /* leap-frog integrator and kinetic energy */
-  En.Ek=zero;
+  En.Ek=zero; // x,y separately (for diag P tensor)
+              // En.Ekin = total kin. energy or Creutz's bag
   En.momentum=zero;
   maxvv=0;
 
@@ -1082,13 +1116,14 @@ Switching to Metropolis Monte Carlo...");
     method=METROPOLIS; }
 
   /*
-     En.Ek.x+En.Ek.y = 4*(total leap-frog kinetic energy)
+     En.Ek.x+En.Ek.y = 4*(total leap-frog kinetic energy), kin-corrected
      En.Ekin=total leap-frog kinetic energy
      see VERLET=3 in MACSIMUS
   */
   En.Ekin=Econserved=(En.Ek.x+En.Ek.y)/4; // total kinetic energy
-  En.Ek.x*=En.q.x/2; En.Ek.y*=En.q.y/2; // corrected for kinetic pressure tensor
-  Tk=2*En.Ekin/En.Nf; // Tk=2*Ekin/Nf
+  En.Ek.x*=En.q.x/2; // corrected for kinetic pressure tensor
+  En.Ek.y*=En.q.y/2; // corrected for kinetic pressure tensor
+  Tk=2*En.Ekin/En.Nf; // kinetic temperature, Tk=2*Ekin/Nf
 
   if (Pneeded) {
     /* En.Ek.x,En.Ek.y already scaled above, for MTK En.q.x=En.q.x=1 anyway */
@@ -1106,12 +1141,23 @@ Switching to Metropolis Monte Carlo...");
     case MDNPT: {
       /* BERENDSEN barostat */
       double rho=L2rho(L);
-      /* rough estimate of bulk modulus: */
-      double B=(EOS(T,rho+1e-2)-EOS(T,rho-1e-2))/2e-2;
+      /* rough estimate of bulk modulus:
+       * from T=3 the EOS is p=rho*T+rho^2+19*rho^5 */
+      double B=rho*(T+rho*(1+50*rho*Sqr(rho)));
 
+      ff=dt*((En.P.x+En.P.y)/2-P)/(B*tau*qtau); /* tau.P = tau*qtau, cf. MTK */
+      //      fprintf(stderr,"MDNPT: L=%g rho=%g ncell=%d B=%g ff=%g\n",L,rho,ss.ncell,B,ff);
 
-      ff=exp(dt*((En.P.x+En.P.y)/2-P)/(B*tau*qtau)); /* tau.P = tau*qtau, cf. MTK */
-      if (L*ff>1e10) ff=1; // added in 12/2021
+      BRACKETVAL(ff,-0.01,0.01);
+      if (L2rho(L)<MINRHONPT) {
+        errmessage=NPTFAILED;
+        if (debug) savesim("debug.sim");
+        method=METROPOLIS;
+        d=0.3/Lh;
+        ff=-0.1; /* shrink */ }
+
+      ff=exp(ff);
+
       L*=ff; Lh=L/2;
       sliders.rho->value(log(L2rho(L)));
       loop (i,0,N) { r[i].x*=ff; r[i].y*=ff; } }
@@ -1200,6 +1246,8 @@ Switching to Metropolis Monte Carlo...");
 
   t+=dt;
 
+  if (debug<0) lc(debuglc);
+
   if (debug) debugtimer("MD");
 } // MDstep()
 
@@ -1214,12 +1262,10 @@ void MCsweep(void) /************************************************ MCsweep */
   Lh=L/2;
   nimg=ss.C2/L+1; // # of replicas if cutoff>Lh
 
-  Tk=0; /* Creutz temperature */
+  En.Ekin=0; // Creutz's bag temperature
 
-
-  loop (i,0,N) {
+  loop (i,0,N) { // 1 sweep = N attempted MC moves ⇒ Nf=N (see degrees_of_freedom)
     if (d>1) d=1;
-
 
     /* trial move of atom i */
 
@@ -1310,59 +1356,70 @@ void MCsweep(void) /************************************************ MCsweep */
 
     if (d>1) d=1;
 
-    Tk+=bag;
+    En.Ekin+=bag;
   } /*N*/
 
-  Tk/=N;
+  Tk=En.Ekin/N; // Nf=N
 
   if (isdauto) sliders.d->value(log(d)/DSCALE);
 
   if (method==MCNPT) {
-    double Lf=rndcos()*dV,f=exp(Lf),ff=f*f,rr;
+    double Lf=rndcos()*dV,f=exp(Lf),rr;
     int isni=ss.C2<Lh && ss.C2<Lh*f;
 
-    nimg=ss.C2/fmin(L,L*f)+1; // # of replicas if !isni
+    //    nimg=ss.C2/fmin(L,L*f)+1; // # of replicas if !isni
 
-    deltaU=0;
+    ss.rrscale=f*f;
+    ss.Clc=ss.C2*fmax(1,1/f); // max cutoff incl. rescaling
+    nimg=ss.Clc/L+1; // # of replicas if !isni
 
-    loop (i,0,N) {
+    if (ss.Clc>Lh) ss.ncell=1;
 
+    ss.DeltaU=0;
+
+    if (bc!=PERIODIC)
       /* energy difference caused by the trial volume change: walls and gravity */
-      if (bc<=SLIT) {
-        deltaU+=
+      loop (i,0,N) {
+        ss.DeltaU+=
           uwally(r[i].y*f)-uwally(r[i].y)
           +uwallyL((L-r[i].y)*f)-uwallyL(L-r[i].y)
           -gravity*(r[i].y*(f-1));
         if (bc==BOX)
-          deltaU+=
+          ss.DeltaU+=
             uwallx(r[i].x*f)-uwallx(r[i].x)
             +uwallxL((L-r[i].x)*f)-uwallxL(L-r[i].x); }
 
-      /* : inefficient, see above */
+    if (ss.ncell>1) {
+      DO_f *DO = MCNPTlc;
+      ss.lcfunc=u; // function called inside MCNPTlc
+      lc(DO); }
+
+    else loop (i,0,N) {
+
       switch (bc) {
         case BOX:
           loop (j,0,i) {
             rr=Sqr(r[i].x-r[j].x)+Sqr(r[i].y-r[j].y);
-            deltaU+=u(rr*ff)-u(rr); }
+            ss.DeltaU+=u(rr*ss.rrscale)-u(rr); }
           break;
         case SLIT:
           if (isni)
             loop (j,0,i) {
               rr=Sqrni(r[i].x-r[j].x)+Sqr(r[i].y-r[j].y);
-              deltaU+=u(rr*ff)-u(rr); }
+              ss.DeltaU+=u(rr*ss.rrscale)-u(rr); }
           else
             loop (j,0,i)
               loopto (k,-nimg,nimg) {
                 drt.x=r[i].x-r[j].x+k*L;
                 drt.y=r[i].y-r[j].y;
                 rr=Sqr(drt.x)+Sqr(drt.y);
-                deltaU+=u(rr*ff)-u(rr); }
+                ss.DeltaU+=u(rr*ss.rrscale)-u(rr); }
           break;
         case PERIODIC:
           if (isni)
             loop (j,0,i) {
               rr=Sqrni(r[i].x-r[j].x)+Sqrni(r[i].y-r[j].y);
-              deltaU+=u(rr*ff)-u(rr); }
+              ss.DeltaU+=u(rr*ss.rrscale)-u(rr); }
           else
             loop (j,0,i)
               loopto (k,-nimg,nimg) {
@@ -1370,30 +1427,29 @@ void MCsweep(void) /************************************************ MCsweep */
                 loopto (l,-nimg,nimg) {
                   drt.y=r[i].y-r[j].y+l*L;
                   rr=Sqr(drt.x)+Sqr(drt.y);
-                  deltaU+=u(rr*ff)-u(rr); } }
+                  ss.DeltaU+=u(rr*ss.rrscale)-u(rr); } }
       } /* bc */
     }
 
-    if (rnd()<exp(Lf*(2*N)-(P*Sqr(L)*(ff-1)+deltaU)/T)) {
+    if (rnd()<exp(Lf*(2*N)-(P*Sqr(L)*(ss.rrscale-1)+ss.DeltaU)/T)) {
       /*
          This is for NPT ensemble with volume measure mu=1/V,
          which is compatible with MTK (with conserved momentum).
          See https://doi.org/10.1063/5.0193281 for details.
-         (For mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N) 
+         (For mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N)
          in the formula above.)
       */
       Vaccepted++;
       if (isdauto) {
         if (dV<MAXDV) dV*=1+(1-acc)*0.01; }
       rr=L2rho(L);
-      if (rr<1e-5) {
+      if (rr<MINRHONPT) {
         errmessage=NPTFAILED;
         f=0.8; /* shrink box */
         rr/=f*f;
         if (debug) savesim("debug.sim");
         method=METROPOLIS;
         d=0.3/Lh; }
-      if (L*f>1e10) ff=1; // added in 12/2021
       L*=f; Lh=L/2;
       sliders.rho->value(log(rr));
       loop (i,0,N) { r[i].x*=f; r[i].y*=f; } }
@@ -1499,10 +1555,8 @@ void loadsim(const char *fn) /************************************** loadsim */
         return ; }
 
     fclose(in); }
-  else {
+  else
     fl_alert("file \"%s\" unreadable or not found",fn);
-    fclose(in);
-    return; }
 } // loadsim()
 
 /* mean squared displacement, following the periodic b.c. if applicable */

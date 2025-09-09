@@ -18,7 +18,8 @@ void shorten(char *s) /********************************************* shorten */
     if ( (c=strstr(s,"e-0")) ) memcpy(c+2,c+3,strlen(c));
     if ( (c=strstr(s,"e+0")) ) memcpy(c+2,c+3,strlen(c));
     if ( (c=strstr(s,"=-0.")) ) memcpy(c+2,c+3,strlen(c));
-    if ( (c=strstr(s,"=0.")) ) memcpy(c+1,c+2,strlen(c)); }
+    if ( (c=strstr(s,"=0.")) ) memcpy(c+1,c+2,strlen(c));
+  }
 } // shorten()
 
 /* top: parameters and run info */
@@ -59,11 +60,30 @@ protected:
     else
       strcpy(info,methodinfo[method]);
 
-    // something wrong here - FL_ALIGN_BOTTOM out of order, always y-centered
-    //    fl_draw(info,atx,aty,PANELW-9+3*(info[0]=='['),TSIZE,FL_ALIGN_RIGHT|FL_ALIGN_BOTTOM);
-    // using fl_width(info) is much easier
-    fl_draw(info,atx+PANELW-11+3*(info[0]=='[')-fl_width(info),aty);
+    // local short error message with timer
+    static const char *shortmsg;
 
+    if (lasterrmessage || shortmsg) {
+      static double t0=0,t1;
+
+      if (!shortmsg) t0=mytime();
+
+      switch (lasterrmessage) { // max 31 chars!
+        case MDFAILED: shortmsg="MD failed: switching to MC"; break;
+        case NPTFAILED: shortmsg="NPT failed: switching to MC"; break;
+        case MSDFAILED: shortmsg="MSD undefined: can't follow"; break;
+        default:; }
+
+      if (shortmsg) {
+        strcpy(info,shortmsg);
+        fl_color(OI_RED); }
+
+      t1=mytime(); // show short message for 4 s
+      if ((t1-t0)>4) {
+        lasterrmessage=0;
+        shortmsg=NULL; } }
+
+    fl_draw(info,atx+PANELW-11+3*(info[0]=='[')-fl_width(info),aty);
     fl_color(FL_BLACK);
 
     // the variable that just have changed is RED
@@ -128,16 +148,38 @@ protected:
     fl_draw(s,atx,aty); aty+=20;
     fl_color(FL_BLACK);
 
-    if (h()>84) {
+    { // this is unnecessarily shown too often (every step)
+      static double t0,tav;
+      static int n=0,ncell; // 1st value will be wrong
+      double t=mytime();
+
       if (gravity!=last.gravity || speed.stride!=last.stride || block!=last.block) lastc.g=10;
       if (lastc.g) fl_color(OI_RED),lastc.g--;
       last.gravity=gravity;
       last.stride=speed.stride;
       last.block=block;
-      sprintf(s,"g=%5.3f    stride*block=%d*%d (%.3g ms)",gravity,speed.stride,block,speed.timerdelay*1000);
-      fl_draw(s,atx,aty); }
+
+      /* averages cycle time over at least 2 s */
+      sprintf(s,tav>=10?
+              "g=%5.3f  stride*block=%d*%d  %.3f%+.4g ms  ncell=%d":
+              "g=%5.3f  stride*block=%d*%d  %.3f%+.3f ms  ncell=%d",
+              gravity,
+              speed.stride,block,
+              speed.timerdelay*1000,tav,ncell);
+
+      if (t-t0>2) { // update in 2 s or a bit more
+        // this will be shown later
+        tav=((t-t0)/n-speed.timerdelay)*1000; ncell=ss.ncell;
+        n=0;
+        t0=t; }
+      n++;
+
+      if (h()>84)
+        fl_draw(s,atx,aty+(h()-92)/2);
+    } // measure wall time and ncell autoset
+
     fl_color(FL_BLACK);
-  }
+  } // draw()
 
 public:
   InfoPanel (int X, int Y, int W, int H) : Fl_Box(X,Y,W,H) {
@@ -163,7 +205,7 @@ private:
       double Vav=sum.V/iblock;
       double momentumav=sum.momentum/iblock;
       double rhoav=N/Vav;
-      double Tav=sum.Tk/iblock;
+      double Tav=sum.Tk/iblock; // will be replaced by T for Pvir
       vector Pav={sum.P.x/iblock,sum.P.y/iblock};
       double Pvir=(Pav.x+Pav.y)/2;
       vector MSDav=zero; // calc. here = last block
@@ -171,7 +213,7 @@ private:
       int n=-1;
 
       if (isMC(method)) {
-        Tav=T;
+        Tav=T; // to be used in calculations of Pvir etc.
         if (method==CREUTZ) Tav=sum.Ekin/iblock; }
 
       Fl_Box::draw();
@@ -210,27 +252,30 @@ private:
 
       fl_color(OI_BLUE);
 
-      const char *eq=dtfixed?"=":"⇒";
+      const char *eq=dtfixed?"=":"⇒"; // ⇒ not shown?
 
-      if (method==MDNPT || method==MTK) {
-        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f  n=%d",Tav,eq,dt,rhoav,n);
-        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",Tav,eq,dt,rhoav);
+      if isMD(method) {
+        if (method==MDNPT || method==MTK)
+          sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",Tav,eq,dt,rhoav);
+        else
+          sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
         if (files.record) addM("Tkin",Tav); }
-      else if (isMD(method)) {
-        if (files.record) sprintf(s,"Tkin=%5.3f  dt%s%5.4f  n=%d",Tav,eq,dt,n);
-        else sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
-        if (files.record) addM("Tkin",Tav); }
-      // removed because of CSV output: Tbag will be also printed
-      //      else if (method==MCNPT) {
-      //        if (files.record) sprintf(s,"acc.r.=%.4f  ρ=N/⟨V⟩=%.4f  n=%d",sum.Vaccr/iblock,rhoav,n);
-      //        else sprintf(s,"acc.r.=%5.3f  ρ=N/⟨V⟩=%.4f",sum.accr/iblock,rhoav); }
-      else { /* Metropolis, CREUTZ */
-        if (files.record) sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f  n=%d",sum.Ekin/iblock,sum.accr/iblock,n);
-        else sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",sum.Ekin/iblock,sum.accr/iblock);
+      else {
+        if (method==MCNPT)
+          sprintf(s,"Tbag=%5.3f  acc.r.=%.4f (V %.4f)  ρ=N/⟨V⟩=%.4f",
+                  sum.Tk/iblock,sum.accr/iblock,sum.Vaccr/iblock,rhoav);
+        else /* Metropolis, CREUTZ */
+          sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",
+                  sum.Tk/iblock,sum.accr/iblock);
         if (files.record) addM("Tbag",sum.Ekin/iblock); }
 
       shorten(s);
       fl_draw(s,atx,aty);
+
+      if (files.record) {
+        sprintf(s,"n=%d",n);
+        fl_draw(s,atx+PANELW-11-fl_width(s),aty); }
+
       aty+=20;
 
       // MC: equivalent kinetic energy to print internal energy
@@ -392,7 +437,7 @@ private:
         justreset=1;
         itot=HISTMAX+1;
         lastShow=Show; }
-      
+
       if (h()>180) switch (Show) {
 
         case ENERGY:
@@ -866,7 +911,7 @@ The box is rescaled to keep constant density.\n\
 MD may fail and will be temporarily replaced by MC.");
 
     atx=X+W-42; // from the "next slider"
-    
+
     Parms.plus=new Fl_Button(atx,aty,35,20,"N+");
     Parms.plus->callback(cb_plus);
     Parms.plus->tooltip("\
@@ -882,16 +927,16 @@ sufficient resolution.");
 ZERO GRAVITY\n\
 \n\
 Set the gravity to zero, g:=0.");
-    
-    Parms.minus=new Fl_Button(atx,aty+sh-21,35,20,"N−");
+
+    Parms.minus=new Fl_Button(atx,aty+sh-21,35,20,"N-"); // "N−" not shown
     Parms.minus->callback(cb_minus);
     Parms.minus->tooltip("\
 REMOVE PARTICLE\n\
 \n\
-One particle is removed: N:=N−1.\n\
+One particle is removed: N:=N-1.\n\
 Useful if the N-slider does not have\n\
 sufficient resolution.");
-
+    // N:=N−1 not shown
   }
 };
 
@@ -999,15 +1044,15 @@ Selected available VARIABLEs are:\n\
   P = pressure (NPT only)\n\
   qtau, qτ = for MD/NPT: tauP=qtau*tau\n\
   rho, ρ = number density (L recalculated)\n\
-  stride = every stride-th config. shown\n\
   T = temperature (not NVE)\n\
   tau, τ = thermostat time constant (MD)\n\
   wall = wall number density\n\
 More VARIABLEs (see the manual):\n\
-  a b bc c circle method nbr show trace v\n\
+  a b bc c circle ff fps method nbr\n\
+  ncell show speed trace v\n\
 Example:\n\
   ρ=0.01\n\
-Values out of slider range are accepted.");
+Values out of slider range may be accepted.");
 
     aty+=30;
 
@@ -1138,16 +1183,17 @@ and set the min-max range anew.\n");
     colormode->tooltip("\
 COLOR MODE\n\
 \n\
-Black = all atoms are black\n\
-One = one atom black, the rest orange\n\
-y-split = top half of the configuration is blue,\n\
+Black = All atoms are black\n\
+One = One atom black, the rest orange\n\
+y-split = Top half of the configuration is blue,\n\
     bottom half red, and these colors are kept\n\
-Neighbors = color atoms by the number of neighbors\n\
-    the color code is shown top right (Okabe+Ito palette)\n\
-Random = colorize atoms randomly (and keep)\n\
-Art = cycle through rainbow colors, best with draw mode=Line\n\
-    change length by variable trace (from cmd:)\n\
-Keep = keep the colors (e.g., after Neighbors)");
+Neighbors = Colorize atoms by the number of\n\
+    neighbors, the color code is shown top right\n\
+Random = Colorize atoms randomly (and keep)\n\
+Art = Cycle through rainbow colors, best with\n\
+    draw mode=Line or Trace.\n\
+    Change length by variable trace (from cmd:)\n\
+Keep = Keep the colors (e.g., after Neighbors)");
 
     setd=new Fl_Light_Button(atx+W/2+4,aty,118,25,"set MC moves");
     setd->selection_color(OI_GREEN);
@@ -1186,17 +1232,18 @@ keeps launching errors.");
     sliders.speed->type(FL_HOR_FILL_SLIDER);
     sliders.speed->minimum(MINSPEED);
     sliders.speed->maximum(MAXSPEED+1.5); // note that >MAXSPEED+1⇒ max speed
-    sliders.speed->value(speed.init);
-    slider2speed(speed.init);
+    sliders.speed->value(SPEEDINIT);
+    slider2speed(SPEEDINIT);
     sliders.speed->color(SLIDERCOLOR);
     sliders.speed->tooltip("\
 SIMULATION SPEED\n\
 \n\
-• leftmost: very slow\n\
+• leftmost: very slow (FPS decreased)\n\
 • left: every frame shown with the selected FPS\n\
 • center: every 3rd frame shown with the selected FPS\n\
 • right: every 10th frame shown with the selected FPS\n\
-• rightmost: every 10th frame shown as fast as possible\n\
+• rightmost: max speed: as above, no delays, faster disk\n\
+   drawing method for L>10; however, disks may overdraw text\n\
 →watch stride*block and delay in the 4th line\n");
 
     //    sliders.block=new Fl_Fill_Slider(atx+W/2-26, aty,W/2-38, 20,"measurement block");

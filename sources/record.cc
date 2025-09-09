@@ -260,7 +260,7 @@ Parameters:\n\
   method=\"%s\"\n\
   Nf=%d degrees of freedom\n\
   qx,qy=%g,%g kinetic pressure correction factors\n\
-  T=%g temperature ⇒ B=%g (2nd virial coefficient)\n\
+  T=%g temperature -> B=%g (2nd virial coefficient)\n\
   P=%g pressure\n\
   g=%g gravity\n",
                 files.nmeas,

@@ -1,9 +1,9 @@
 <head>
-  <title>SIMOLANT 02/2025</title>
+  <title>SIMOLANT 04/2025</title>
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 <body>
-  <h1><font color="NAVY" face="SANS">SIMOLANT 02/2025</font></h1>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 03/2025</font></h1>
 
 <!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
 
@@ -23,6 +23,7 @@
         <li><a href="#WALLS">Walls and gravity</a></li>
         <li><a href="#Limits">How realistic is this?</a></li>
         <li><a href="#Potentials">More interaction potentials</a></li>
+        <li><a href="#Linklist">Pair sum and linked-cell list</a></li>
       </ul>
     <li><a href="#Menus">Menus</a>
       <ul>
@@ -140,7 +141,7 @@
     function, <i>u</i>(<i>r</i>).  The total energy is the sum of these pair
     terms over all pairs of atoms.  We do not use any real units – the units
     are defined by the respective formulas and the Boltzmann
-    constant <i>k</i>=1).  The potential type and its parameters are printed
+    constant <i>k</i>=1.  The potential type and its parameters are printed
     at the top of the right panel next to the number of particles; e.g.,
     "N=300 LJ c=4"</p>
 
@@ -170,10 +171,6 @@
     derivate of forces has jumps).  No cutoff corrections are added.  The
     recommended default <i>c</i>=4, the minimum is <i>c</i>=2.232.</p>
 
-  <p>For <i>c</i>&lt;L/2 (L is the square box side), the nearest-image
-    algorithm is used, otherwise a sum over all periodic images is
-    calculated.</p>
-
   <p>The critical point for the default c=4 version is approximately T=0.85,
     P=0.06, ρ=0.3 for <i>c</i>=4.  The Boyle temperature is 3.0138.
   </p>
@@ -183,7 +180,7 @@
 
   <p>The walls can keep the particles in a box or a slit.  There are two types
     of walls, attractive and repulsive.  The attractive wall is built of the
-    same particles as the 2D Lennard-Jones (without triuncation), but imagine
+    same particles as the 2D Lennard-Jones (without truncation), but imagine
     them ground to tiny pieces and smoothly distributed on one side of the
     wall with number density ρ=N/L²=0.75 (can be changed by option
     -Pwall=VALUE or from cmd:).  The particle–wall potential is thus</p>
@@ -198,7 +195,7 @@
   <p>If horizontal walls are present, gravity can be turn on.  The potential
   per particle is</p>
   <p>
-    &nbsp; &nbsp; <i>u</i>>(<i>y</i>) = <i>−gy</i>
+    &nbsp; &nbsp; <i>u</i><sub>gravity</sub>(<i>y</i>) = <i>−gy</i>
   </p>
   Negative <i>g</i> is the usual gravity.  <br>
   <b>Bug or feature:</b> the virial of the force of gravity is not included in the pressure tensor calculation.
@@ -212,7 +209,7 @@
     three dimensions.  The only notable exception is a possibly different
     nature (universality class) of the freezing transition.  If water freezes,
     a nucleus of ice appears and then it grows – there is an interface between
-    both phases.  This is first-order phase transition, other example is
+    both phases.  This is the first-order phase transition, other example is
     vapor condensation in both 2D and 3D.  However, when some 2D systems are
     cooled, there is no interface between ordered (frozen) and disordered
     (liquid) phases (Kosterlitz–Thouless continuum transition).  Instead,
@@ -255,8 +252,8 @@
       Penetrable spheres, here penetrable disks, is a simple model of
       a polymer coil in a good solvent.<br><br>
 
-      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−c²)²/c² &nbsp; &nbsp; for <i>r</i> &lt; 2<br>
-      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; 2<br><br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = a(r²−c²)²/c² &nbsp; &nbsp; for <i>r</i> &lt; <i>c</i><br>
+      &nbsp; &nbsp; <i>u</i>(<i>r</i>) = 0 &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; for <i>r</i> &ge; <i>c</i><br><br>
 
       The default is <i>a</i>=1, <i>c</i>=2.  From cmd:, any value can be set:<br>
       &nbsp; &nbsp; <i>a</i>&gt;0 &nbsp; &nbsp; repulsive penetrable spheres (disks),<br>
@@ -280,8 +277,59 @@
       The default <i>a</i>=1.25, <i>b</i>=1.4, <i>c</i>=2 set from the Force
       Field menu is likely close to the Penrose structure, use cmd: to
       change.</li>
-
   </ul>
+
+  <a name="Linklist"></a>
+  <h3><font color="navy" face="sans"><i>Pair sum and linked-cell list</i></font></h3>
+
+  <p>Calculating the interaction potential and forces needs to consider all
+    neighbors of a particle within the cutoff distance <i>c</i>. Three algorithms
+    are available.
+    <ol>
+      <li> If the cutoff is longer than half box size,
+        <font face="helvetica">c&gt;L/2</font>, one particle may interact with
+        different periodic replicas of other particles.  Thus, the sum over
+        all pairs of particles is amended by the triple sum over all replicas
+        of the central cell that may contain interacting particles.
+        For <font face="helvetica">c&gt;L</font>, a particle even interacts
+        with its own periodic replicas.  However,
+        condition <font face="helvetica">c&gt;L/2</font> is not typical for
+        most examples with many particles, so that this algorithm is rarely
+        activated.</li>
+      <li> If the cutoff is a little bit shorter than half box size or for a
+        few particles only, the pair sum is calculated as a simple double
+        sum.</li>
+      <li> If the cutoff is shorter than half box size, which typically
+        happens for many particles, the pair sum is calculated by the
+        linked-cell list method.  It is based on domain decomposition of the
+        box into <font face="helvetica">ncell×ncell</font> cells.  For each
+        particle in each cell, only the cells within the cutoff (and “ahead” to
+        avoid counting each pair twice) are considered and scanned for
+        possible interactions.  Only calculations of forces in molecular
+        dynamics and the box swelling/shrinking in NPT MC are treated by this
+        algorithm.  The sums needed in Metropolis MC displacements and
+        calculating RDF and other quantities at the end of a cycle are
+        evaluated by algorithms 1 or 2.</li>
+    </ol>
+    The algorithm choice is controlled by
+    variable <font face="helvetica">ncell</font> available from input field
+    cmd:
+    <ul>
+      <li><font face="helvetica">ncell=0</font> (default) means that the
+        appropriate method is selected automatically.</li>
+      <li><font face="helvetica">ncell=1</font> selects the direct pair method
+        2 (unless <font face="helvetica">c&gt;L/2</font> for which method 1 is
+        used).</li>
+      <li><font face="helvetica">ncell&gt;1</font> chooses the linked-list cell
+        method 3 with the selected number of cells per box side (unless <font face="helvetica">c&gt;L/2</font> for which
+        method 1 is used).</li>
+    </ul>
+    Since the default <font face="helvetica">ncell=0</font> may not be
+    optimum, you are encouraged to
+    try <font face="helvetica">ncell&gt;1</font> by hand.  The top right panel
+    shows the timing sampled every 2 s.
+  </p>
+
 
   <a name="Menus"></a>
   <h2><font color="NAVY" face="SANS">Menus</font></h2>
@@ -346,23 +394,25 @@
       block for better precision).</li>
 
     <li><b>Vapor-liquid <u>e</u>quilibrium</b> <br>
-      A "vessel" periodic in the
-      <i>x</i>-direction is prepared with liquid at bottom.  Watch pressure and
-      density as you cool or heat the system a bit.  You may try Metropolis
-      Monte Carlo.  See also <tt>clausius-clapeyron.pdf</tt> workout</li>
+      A "vessel" periodic in the <i>x</i>-direction is prepared with liquid at
+      bottom, <i>T</i>=0.65.</li>.  Watch pressure and density as you cool or
+      heat the system a bit.  See also <tt>clausius-clapeyron.pdf</tt>
+      workout</li>
 
-    <li><b><u>N</u>ucleation</b><br>
-      Dilute gas is prepared and quickly cooled (quenched).  Several
-      small droplets soon form.  They coalesce to bigger droplets.  For a
-      more realistic simulation corresponding better to the condensation
-      of water vapor in wet air, the Langevin thermostat is used – heat
-      transfer between air and droplets is modeled by random forces.  If
-      you are patient, you may observe another phenomenen
-      responsible for growth of large droplets at the expense of small
-      ones – Ostwald ripening.  The trick is that small droplets
-      evaporate faster than the big ones because of their curved
-      surface.  On the contrary, bigger droplets catch more eagerly
-      flying molecules and grow faster.</li>
+    <li><b>Horizontal <u>s</u>lab</b> <br>
+      A "vessel" periodic in the <i>x</i>-direction is prepared with
+      a liquid slab at center, <i>T</i>=0.6.</li>
+
+    <li><b><u>N</u>ucleation</b><br> Dilute gas is prepared and quickly cooled
+      (quenched).  Several small droplets soon form.  They coalesce to bigger
+      droplets.  For a more realistic simulation corresponding better to the
+      condensation of water vapor in wet air, the Langevin thermostat is used
+      – heat transfer between air and droplets is modeled by random forces.
+      If you are patient, you may observe another phenomenen responsible for
+      growth of large droplets at the expense of small ones – Ostwald
+      ripening.  The trick is that small droplets evaporate faster than the
+      big ones because of their curved surface.  On the contrary, bigger
+      droplets catch more eagerly flying molecules and grow faster.</li>
 
     <li><b><u>L</u>iquid droplet</b><br> A small droplet is produced at
       temperature <font face="helvetica">T=0.6</font> in the periodic
@@ -441,9 +491,15 @@
       Other "less magic" solutions (as doubled magic numbers with the crystal
       rotated by 45°) are not considered.<br>
 
-      For N=15 or 56, low  T and appropriate ρ or P, the best crystal forms
+      For N=15 or 56, low T and appropriate ρ or P, the best crystal forms
       spontaneously.  For higher N this happens only occasionally and (e.g.)
-      several heating/freezing cycles are needed.</li>
+      several heating/freezing cycles are needed to obtain a crystal without
+      defects.<br>
+      Hint: prepare a crystal, type button [N+] to include an interstitial and
+      [N−] to remove one atom. You will observe a vacancy and interstitial
+      annihilating.
+
+    </li>
 
     <li><b>Vicse<u>k</u> active matter</b><br>
       Gas of penetrable disks with <i>a</i>=0.2, <i>c</i>=4, low density, and
@@ -726,7 +782,7 @@
       <a name="V"></a><b>Vicsek with NVT (Langevin)</b><br>
 
       The same as the Langevin thermostat with the velocity of each particle
-      (“bird” or “fish”) attaing the weighted averaged velocity from all
+      (“bird” or “fish”) attaining the weighted averaged velocity from all
       particles within cutoff <i>c</i>:<br><br>
       &nbsp; &nbsp; <i>v<sub>i</sub></i> := ∑<i><sub>j</sub></i> <i>v<sub>j</sub></i>*<i>w<sub>j</sub></i> / ∑<i><sub>j</sub></i> <i>w<sub>j</sub></i>, where <i>w<sub>j</sub></i>=c²−<i>r<sub>j</sub></i>²
       <br><br>
@@ -772,13 +828,6 @@
     recorded.</p>
 
   <ul>
-    <li><b><u>N</u>othing (almost)</b><br>
-
-      Measuring most quantities is turned off, shown are only the temperatures and for MC the potential
-      energy and temperature/kinetic energy (if applicable) and basic method
-      parameters.  If <font face="helvetica">▯&nbsp;record</font> is requested,
-      Quantities (full measurements) are selected automatically.
-      </li>
 
     <li><b><u>Q</u>uantities</b><br>
 
@@ -849,11 +898,11 @@
       The running convergence profile of temperature (kinetic in MD,
       averaged bag in MC).
 
-    <li><b><u>V</u>olume convergence profile</b><br>
-      The volume convergence profile (NPT only).
-
     <li><b><u>P</u>ressure convergence profile</b><br>
       The convergence profile of virial pressure.
+
+    <li><b><u>V</u>olume convergence profile</b><br>
+      The volume convergence profile (NPT only).
 
     <li><b><u>M</u>omentum (e.g., for Vicsek)</b><br>
       The total momentum (or velocity because <i>m</i>=1) of the simulation
@@ -921,12 +970,9 @@
   <ul>
     <li><b>FPS=<u>1</u>5</b><br>
 
-      Set the number of frames per second to 15. This is an approximate value
-      which is based on measuring simulation and drawing time and calculating
-      the remaining timeout.  If the simulation takes a longer time, the FPS
-      is smaller.  Note that the speed is also affected by slider Simulation
-      speed.  It is void (maximum speed) if this slider is at the rightmost
-      position.  See also option -F.
+      Set the number of frames per second to 15. The real FPS may be changed
+      by slider [simulation speed]. Also, if the simulation takes a longer
+      time, the real FPS is slower.
 
     <li><b>FPS=<u>3</u>0</b><br>
 
@@ -983,9 +1029,10 @@
     Top line in the right panel shows the number of particles and
     the <font color="magenta" face="helvetica">MC|MD/ensemble/method</font>.
     Symbol <font color="magenta" face="helvetica">MC→MD</font> means that MC
-    is running to remove overlaps and will be switched to MD.<br>  Symbol in
-    brackets <font color="magenta" face="helvetica">[MC|MD/ensemble/method]</font> denotes that a switch to MC
-    and back is possible in case of problems.
+    is running to remove overlaps and will be switched to MD.<br>  The text in
+    brackets <font color="magenta"
+    face="helvetica">[MC|MD/ensemble/method]</font> denotes that a switch to
+    MC and back is possible in case of problems.
   </p>
 
   <a name="Variables"></a>
@@ -1008,6 +1055,8 @@
     <tr><td><font face="helvetica">P</font></td><td> Pressure (parameter of a NPT simulation)</td></tr>
     <tr><td><font face="helvetica">stride</font></td><td> stride MD steps or MC sweeps is performed between drawing the configuration and measuring quantities.</td></tr>
     <tr><td><font face="helvetica">block</font></td><td> Number of measurements in one block (by <font face="helvetica">stride</font> MC sweeps or MD steps).</td></tr>
+    <tr><td><font face="helvetica">#.###+#.### ms</font></td><td> This is technical info. The first number is the timer constant in millisecond determined from menu Tinker → FPS (Frames Per Second), slider [simulation speed], and menu Tinker → Timeout (for the slider at maximum speed).  The second number is the additional time needed: If the CPU time of one cycle (of stride steps) is less than 1/FPS, the it should oscillate around zero (delays are inserted to reach frame rate FPS).  If the second number is large and positive, the calculation cannot be tan within one frame and the movie slows down.</td></tr>
+    <tr><td><font face="helvetica">ncell</font></td><td>See <a href="#Linklist">here</a> for details.</td></tr>
   </table>
   <p>The following quantities are shown during simulation in the right panel and also printed to the protocol and convergence profiles.</p>
   <table>
@@ -1068,7 +1117,10 @@
 
       Negative values point downwards (as in the Earth gravitational
       field), positive upwards.  In the periodic boundary conditions the
-      forces of gravity are inactive.</li>
+      forces of gravity are inactive.<br>
+      In addition, button [g=0] sets zero gravity.
+
+    </li>
 
     <li><font face="helvetica">ρ</font> &nbsp;  Number density <font face="helvetica">ρ=N/Area</font>.<br>
 
@@ -1099,12 +1151,19 @@
         <li> decrease <font face="helvetica">N</font>: randomly selected particles are removed</li>
         <li> increase <font face="helvetica">N</font>: particles are inserted at random places</li>
       </ul>
+      In addition, buttons [N+] and [N−] allow for adding and removing single particles.
   </ul>
 
   <a name="Walls + shifts"></a>
-  <h3><font color="navy" face="sans"><i>Walls</i></font></h3>
-  Clicking the respective buttons will toggle repulsive (red) and attractive
-  (green) walls.  Button [invert] swaps repulsive ↔ attractie walls.
+  <h3><font color="navy" face="sans"><i>Walls + shifts</i></font></h3>
+  <ul>
+    <li>If walls are present: Clicking the respective top/bottom/left/right
+      buttons will toggle repulsive (red) and attractive (green) walls.
+      Button [invert] swaps repulsive ↔ attractive walls. </li>
+    <li>For periodic boundary conditions: Clicking the respective shift
+    left/right/up/down buttons will move the configuration.  The opposite
+    moves are not the same to allow for a finer move.</li>
+  </ul>
 
   <a name="Expert"></a>
   <h3><font color="navy" face="sans"><i>Expert</i></font></h3>
@@ -1190,23 +1249,25 @@
         <tr><td>b</td><td>(menu)</td><td>Parameter of the <a href="#DW">double well</a> potential.</td></tr>
         <tr><td>bc</td><td>menu</td><td>Boundary conditions (0=box, 1=<it>y</it>-periodic, 2=periodic).</td></tr>
         <tr><td>block</td><td>slider</td><td>Measurements/block for statistics and graphs.</td></tr>
-        <tr><td>circle</td><td>option -C</td><td>circle drawing method (0=fl_pie, 1=fl_circle, 2=composed of fl_line)</td></tr>
+        <tr><td>circle</td><td></td><td>Circle drawing method (0=fl_pie, 1=fl_circle, 2=composed of fl_line). The default is circle=2 which works correctly also for the periodic boundary conditions, circle=0 or 1 are faster, but may partly overlap the right panel. May change for max. [simulation speed].</td></tr>
         <tr><td>c</td><td>(menu)</td><td>Potential cut-off.</td></tr>
         <tr><td>d</td><td>slider</td><td>MC displacement (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
         <tr><td>dV</td><td></td><td>MC change of ln(V)   (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
         <tr><td>dt, h</td><td></td><td>Time step; 0=automatic.</td></tr>
         <tr><td>ff</td><td>menu</td><td>Force field (0=2DLJ,1=WCALJ,2=PD,3=DW).</td></tr>
+        <tr><td>FPS</td><td>menu</td><td>Animation speed in Frames Per Second, see also <a href="#Tinker">Tinker</a>.</td></tr>
         <tr><td>g</td><td>slider</td><td>Gravity.</td></tr>
         <tr><td>L</td><td></td><td>Box size (density ρ gets recalculated).</td></tr>
         <tr><td>measure</td><td>menu</td><td>REMOVED in V03/2025, use show instead.</td></tr>
         <tr><td>method</td><td>menu</td><td>Method (MC/MD, thermostat..), integer from 0 in the order defined in the menu.</td></tr>
-        <tr><td>N</td><td>slider</td><td>Number of particles; also option -N (deprecated).</td></tr>
+        <tr><td>N</td><td>slider</td><td>Number of particles; also option -N.</td></tr>
         <tr><td>nbr</td><td></td><td>Atom-atom distance limit to define neighbors (for coloring)</td></tr>
+        <tr><td>ncell</td><td></td><td>Number of cells per box side, or 1 for the direct pair sum, or 0 for automatic setup. See <a href="#Linklist">here</a> for details.</td></tr>
         <tr><td>P</td><td>slider</td><td>Barostat pressure.</td></tr>
         <tr><td>qtau, qτ&nbsp;</td><td></td><td>Ratio τ(barostat)/τ(thermostat).</td></tr>
         <tr><td>rho, ρ</td><td>slider</td><td>Number density, ρ=N/V; L gets recalculated.</td></tr>
         <tr><td>show</td><td>menu</td><td>Show quantities/graphs, integer from 0 in the order defined in the menu.</td></tr>
-        <tr><td>stride</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
+        <tr><td>speed</td><td>slider</td><td>Show each stride-th configuration.</td></tr>
         <tr><td>T</td><td>slider</td><td>Thermostat temperature.</td></tr>
         <tr><td>tau, τ</td><td>slider</td><td>Thermostat time constant (MD).</td></tr>
         <tr><td>trace</td><td></td><td>Trace length for draw mode Traces and Art color mode (default=64).</td></tr>
@@ -1279,7 +1340,11 @@
         <li> Left: every frame is shown with the selected FPS (see menu Tinker).</li>
         <li> Center: every 3rd configuration is shown with the selected FPS. This is the default.</li>
         <li> Right: every tenth configuration is shown with the selected FPS.</li>
-        <li> Rightmost: every tenth configuration is shown as fast as possible (no delays added).</li>
+        <li> Rightmost: every tenth configuration is shown as fast as possible
+          (no delays added). In addition, if circle=2 (cicles composed of
+          lines) is selected, it is ignored for L&gt;10 and fl_pie() is used
+          (as with circle=0). This is faster, but some text may be
+          overdrawn.</li>
       </ul>
       Note that for many particles, the calculation and showing may be slower
       than the selected FPS.
@@ -1302,7 +1367,7 @@
 
   <p>FLTK options are recognized. Note a space between the option and its (optional) value. Useful ones:</p>
   <table>
-    <tr><td><b>-g <font color="magenta">WxH+X+Y</font></b></td><td>geometry (W,H=window width and height, X,Y = position).  Do not use less than -g 958x683</td></tr>
+    <tr><td><b>-g <font color="magenta">WxH+X+Y</font></b></td><td>geometry (W,H=window width and height, X,Y = position).  The default is -g 1192x736. Do not use less than about -g 1150x700; particularly, a smaller height will cause overlaps of text and widgets.</td></tr>
     <tr><td><b>-title&nbsp;<font color="magenta">"WINDOW TITLE"</font></b></td><td>change window title</td></tr>
     <tr><td><b>-ico</b></td><td>start iconized</td></tr>
     <tr><td><b>-notooltips</b></td><td>do not show tooltips (help text appearing over buttons and sliders)</td></tr>
@@ -1310,15 +1375,13 @@
   <p>SIMOLANT options are UPPERCASE. The following number/value is without space! No check is done whether the values given are in a reasonable range!</p>
   <table>
     <tr><td><b><font color="magenta">file</font></b></td><td>sim-file (configuration) to open</td></tr>
-    <tr><td><b>-C<font color="magenta">method</font></b></td><td>the circle drawing method: 0=fl_pie, 1=fl_circle, 2=composed of fl_line (default)</td></tr>
+    <tr><td><b>-C<font color="magenta">method</font></b></td><td>the circle drawing method: 0=fl_pie, 1=fl_circle, 2=composed of fl_line (default) see</td></tr>
     <tr><td><b>-D<font color="magenta">steps</font></b></td><td>debug mode (timing and technical info printed to stderr every MD or MC steps), disabled in Windows (recompile with -mconsole instead of -mwindows)</td></tr>
-    <tr><td><b>-F<font color="magenta">FPS</font></b></td><td>frames per second of movies (if possible), default=60</td></tr>
     <tr><td><b>-I<font color="magenta">init</font></b></td><td>(init=number) initial system (Gas=0, Diffusion=1, etc.)</td></tr>
     <tr><td><b>-N<font color="magenta">N</font></b></td><td>initial number of particles (legacy, also -PN=)</td></tr>
     <tr><td><b>-N<font color="magenta">PROTOCOL</font></b></td><td>protocol name without extension, cf. menu File</td></tr>
     <tr><td><b>-P<font color="magenta">comma-separated assignments</font></b></td><td>Commands (assignments) as in the "Expert" mode, comma-separated, decimal separator=period. Executed after initialization (-I, -N)<br>Example: -Pwall=1,method=1</td></tr>
-    <tr><td><b>-S<font color="magenta">speed</font></b></td><td>initial value of the simulation speed slider [default=3.5], affects the timer and (for speed>=1) the number of the skipped frames. Normal range = [-5,11.5], 11 or 11.5 means 10 and no delay</td></tr>
-    <tr><td><b>-T<font color="magenta">factor</font></b></td><td>the timeout of the time is least factor times the simulation cycle duration [default=0.5]</td></tr>
+    <tr><td><b>-T<font color="magenta">factor</font></b></td><td>the timeout of the timer is at least factor times the 1/FPS. Cf. menu Tinker. [default=0.2]</td></tr>
     <tr><td><b>-U<font color="magenta">delay</font></b></td><td>additional delay in s, do not use [default=1e-5]</td></tr>
     <tr><td><b>-Z<font color="magenta">seed</font></b></td><td>random number seed [default=0=time]</td></tr>
   </table>
@@ -1326,10 +1389,8 @@
   <a name="Bugs"></a>
   <h2><font color="NAVY" face="SANS">Known bugs and caveats</font></h2>
   <ul>
-    <li>There are timing, thread-priority, and/or efficiency problems.
+    <li>There are still timing, thread-priority, and/or efficiency problems.
       The original dumb X11-only version was faster.</li>
-    <li>Simple inefficient O(N²) algorithm (no linked-cell list, no
-      neighbor list...).</li>
     <li>Both / and \ treated as directory separator (on all platforms).</li>
     <li>Inconsistent command line option format.</li>
     <li>Under hard conditions (fast changes of N, density), an
@@ -1346,11 +1407,20 @@
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
   <ul>
-    <li>03/2025</li>Option nomeasure removed, menu renamed to show: always Pvir etc. measured at end of sweep due to code and control simplicity<br>
+    <li>04/2025> Berenedsen NPT bug (small density) fixed, error messages
+      improved</li>
+    <li>03/2025</li>Option nomeasure removed, menu renamed to Show, always
+      Pvir etc. measured at end of sweep due to code and control simplicity,
+      linked-cell list implemented (except Metropolis MC and measurements),
+      some polishing of timing, buttons [N+] [g=0] [N] added, configuration
+      shift, menu items reordered, new items added to Prepare system, max
+      speed uses faster imperfect disks (circle=0) <br>
     <li>02/2025</li>Vicsek model of active matter added<br>
-      two droplets colored, velocity added (variable <i>v</i>)<br>
-      colormode Art (ranbow) added, variable trace added (for Traces and Art)
-    <li>01/2025 Bug fixed: After change of N while MC, the number of degrees of freedom was not updated leading to wrong results<br>
+      two droplets colored, velocity added (variable <i>v</i>), momentum
+      added (for Vicsek)<br>
+      colormode Art (rainbow) added, variable trace added (for Traces and Art)
+    <li>01/2025 Bug fixed: After change of N while MC, the number of degrees
+      of freedom was not updated leading to wrong results<br>
       MSD also for nonperiodic b.c.</li>
     <li>12/2024 More potentials added: WCA, double well, penetrable disks/spheres<br>
       also velocities saved to .sim<br>

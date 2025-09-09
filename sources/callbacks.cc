@@ -16,7 +16,7 @@ static void cb_load(Fl_Widget* w,void *data) /********************** cb_load */
     case  1: break;  // CANCEL
     default: fn=fnfc.filename(); }
 
-  if (debug) fprintf(stderr,"open file: \"%s\"\n",fn);
+  //  if (debug) fprintf(stderr,"open file: \"%s\"\n",fn);
 
   if (fn) loadsim(fn);
 } // cb_load()
@@ -37,7 +37,7 @@ static void cb_save(Fl_Widget* w,void *data) /********************** cb_save */
     case  1: break;  // CANCEL
     default: fn=fnfc.filename(); }
 
-  if (debug) fprintf(stderr,"save file: \"%s\"\n",fn);
+  //  if (debug) fprintf(stderr,"save file: \"%s\"\n",fn);
 
   if (fn) {
     const char *ext=getext(fn);
@@ -76,7 +76,7 @@ static void cb_protocol(Fl_Widget* w,void *data) /************** cb_protocol */
     case  1: break;  // CANCEL
     default: fn=fnfc.filename(); }
 
-  if (debug) fprintf(stderr,"record file: \"%s\"\n",fn);
+  //  if (debug) fprintf(stderr,"record file: \"%s\"\n",fn);
 
   if (fn) {
     int sl=strlen(fn);
@@ -277,11 +277,6 @@ static void cb_timeout50(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.5; }
 static void cb_timeout20(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.2; }
 static void cb_timeout7(Fl_Widget*, void *data) { speed.MINTIMEOUT=0.07; }
 
-// parameter value normalized to range [FROM,TO]
-#define BRACKETVAL(VAL,FROM,TO) do { \
-  if (VAL<FROM) VAL=FROM; \
-  if (VAL>TO) VAL=TO; } while(0)
-
 // the same as strcpm() but case insensitive
 int nocasecmp(char const *a, char const *b) /********************* nocasecmp */
 {
@@ -290,14 +285,14 @@ int nocasecmp(char const *a, char const *b) /********************* nocasecmp */
     if (cmp || !*a) return cmp; }
 }
 
-char printcmd[64],*printcmd0=printcmd;
+char printcmd[64]="",*printcmd0=printcmd;
 
 /* only double version -- not overloaded for int val */
 void append(const char *var, double val) /*************************** append */
 {
-  if (val<=-9e99) printcmd0+=sprintf(printcmd0,"%s ",var);  
+  if (val<=-9e99) printcmd0+=sprintf(printcmd0,"%s ",var);
   else printcmd0+=sprintf(printcmd0,"%s=%g ",var,val);
-  while (fl_width(printcmd)>PANELW/2-21) {
+  while (fl_width(printcmd)>PANELW/2-20) {
     char *x=strchr(printcmd,' ');
     if (!x) x=printcmd;
     memmove(printcmd,x+1,strlen(x)+1);
@@ -331,7 +326,7 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
       err="Error:syntax"; }
 
   if (!err) {
-  
+
     /* variables with sliders: */
     if (!nocasecmp(cmd,"T")) { /* temperature */
       if (assign) {
@@ -339,37 +334,37 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         sliders.T->value(log(val));
         calculateB2(); }
       append("T",exp(sliders.T->value())); }
-  
+
     else if (!nocasecmp(cmd,"tau") || !strcmp(cmd,"τ")) { /* thermostat time */
       if (assign) {
         BRACKETVAL(val,0.01,1e9);
         sliders.tau->value(log(val)); }
       append("τ",exp(sliders.tau->value())); }
-  
+
     else if (!nocasecmp(cmd,"d")) { /* MC step in the units of L */
       if (assign) {
         BRACKETVAL(val,1e-4,1);
         sliders.d->value(log(val)/DSCALE); }
       append("d",exp(DSCALE*sliders.d->value())); }
-  
+
     else if (!nocasecmp(cmd,"g")) { /* gravity */
       if (assign) {
         BRACKETVAL(val,-10,10);
         sliders.g->value(val); }
       append("g",sliders.g->value()); }
-  
+
     else if (!nocasecmp(cmd,"rho") || !strcmp(cmd,"ρ")) { /* density */
       if (assign) {
         BRACKETVAL(val,0.0001,2);
         sliders.rho->value(log(val)); }
       append("ρ",exp(sliders.rho->value())); }
-  
+
     else if (!nocasecmp(cmd,"p")) { /* pressure */
       if (assign) {
         BRACKETVAL(val,-10,100);
         sliders.P->value(val); }
       append("P",sliders.P->value()); }
-  
+
     else if (!nocasecmp(cmd,"l")) { /* box size */
       if (assign) {
         L=val; val=L2rho(L);
@@ -377,28 +372,28 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         sliders.rho->value(log(val));
         L=rho2L(val); }
       append("L",L); }
-  
+
     else if (!nocasecmp(cmd,"n")) { /* number of particles N, see insdel() */
       if (assign) {
         BRACKETVAL(ival,1,MAXN);
         sliders.N->value(NtoSlider(ival)); }
       append("N",SlidertoN(sliders.N->value())); }
-  
-    else if (!nocasecmp(cmd,"stride")) { /* speed, duplicated by speed.stride */
+
+    else if (!nocasecmp(cmd,"speed")) { /* speed */
       if (assign) {
         BRACKETVAL(val,-10,100);
-        speed.stride=val; // IS THIS NECESSARY?
         slider2speed(val);
         sliders.speed->value(val); }
-      append("stride",(double)speed.stride); }
-  
+      append("stride",(double)speed.stride);
+      append("timer",(double)speed.timerdelay*1000); }
+
     else if (!nocasecmp(cmd,"block")) {
       if (assign) {
         BRACKETVAL(ival,1,1000);
         block=ival; // IS THIS NECESSARY?
         sliders.block->value(log10(block)); }
       append("block",(double)block); }
-  
+
     /* variables without sliders: */
     else if (!nocasecmp(cmd,"dt") || !nocasecmp(cmd,"h")) { /* MD time step */
       if (assign) {
@@ -406,56 +401,62 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         if (dtfixed) BRACKETVAL(dtfixed,1e-5,0.1);
         else dtadjset(); }
       append("dt",dtfixed); }
-  
+
     else if (!nocasecmp(cmd,"dV")) { /* MC volume change */
       if (assign) {
         BRACKETVAL(val,1e-4,MAXDV);
         dV=val; }
       append("dV",dV); }
-  
+
     else if (!nocasecmp(cmd,"qtau") || !nocasecmp(cmd,"qτ")) { /* MD qτ=τP/τ */
       if (assign) {
         BRACKETVAL(val,0.5,1e9);
         qtau=val; }
       append("qτ",dV); }
-  
+
     else if (!nocasecmp(cmd,"wall")) { /* wall density */
       if (assign) {
         BRACKETVAL(val,0.1,9);
         walldens=PI*val; }
       append("wall",walldens/PI); }
-  
+
+    else if (!nocasecmp(cmd,"fps")) { /* frame rate per second (FPS) */
+      if (assign) {
+        BRACKETVAL(val,1,240);
+        speed.FPS=val; }
+      append("FPS",speed.FPS); }
+
     else if (!nocasecmp(cmd,"ff")) { /* force field */
       if (assign) {
         BRACKETVAL(val,(int)LJ,(int)NFF-1);
         setss((ff_e)(int)val,ss.C2); }
       append("ff",val); }
-  
+
     else if (!nocasecmp(cmd,"c")) { /* cutoff c */
       if (assign) {
         BRACKETVAL(val,MINC,MAXC);
         setss(ss.ff,val); }
       append("c",ss.C2); }
-  
+
     else if (!nocasecmp(cmd,"a")) { /* ff parameter a */
       //      BRACKETVAL(val,?,?)
       if (assign) {
         ss.a=val;
         setss(ss.ff,ss.C2); }
       append("a",ss.a); }
-  
+
     else if (!nocasecmp(cmd,"trace")) { /* lenght of Traces */
       BRACKETVAL(val,4,2048);
       if (assign) trace=val;
       append("trace",trace); }
-  
+
     else if (!nocasecmp(cmd,"b")) { /* ff parameter b */
       //      BRACKETVAL(val,?,?)
       if (assign) {
         ss.b=val;
         setss(ss.ff,ss.C2); }
       append("b",ss.b); }
-  
+
     else if (!nocasecmp(cmd,"nbr")) { /* neighbor distance limit for coloring */
       if (assign) {
         if (val<=0) val=RNBR; // the default
@@ -463,41 +464,49 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         ss.rnbr=val;
         ss.rnbrq=Sqr(val); }
       append("nbr",ss.rnbr); }
-  
+
+    else if (!nocasecmp(cmd,"ncell")) { /* # of cells/L for linkcell() */
+      if (assign) {
+        BRACKETVAL(ival,0,MAXNCELL);
+        ss.autoncell=!ival;
+        if (ss.autoncell) ss.ncell=autoncell(N);
+        else ss.ncell=ival; }
+      append("ncell",ss.ncell); }
+
     else if (!nocasecmp(cmd,"v")) { /* velocity for Two drops */
       if (assign) {
         BRACKETVAL(val,0,10);
         dropvel=val; }
       append("v",dropvel); }
-  
+
     else if (!nocasecmp(cmd,"circle")) { /* circle drawing method */
-      if (assign) circlemethod=ival%3;
-      append("circle",(double)circlemethod); }
-  
+      if (assign) circle.method=ival%3;
+      append("circle",(double)circle.method); }
+
     else if (!nocasecmp(cmd,"method")) { /* simulation method, thermostat etc. */
       if (assign) {
         method=(method_e)ival;
         mauto=AUTO;
         if (method<=AUTO || method>=NTH) cb_AUTO(NULL,NULL); }
       append("method",(double)method); }
-  
+
     else if (!nocasecmp(cmd,"bc")) { /* boundary conditions */
       if (assign) {
         bc=(bctype)ival;
         if (bc<BOX || bc>PERIODIC) bc=BOX; }
       append("bc",(double)bc); }
-  
+
     else if (!nocasecmp(cmd,"show")) { /* what to show */
       if (assign) {
         Show=(Show_e)ival;
         if (Show<QUANTITIES || Show>=NSHOW) Show=QUANTITIES; }
       append("Show",(double)Show); }
-  
+
     else
       err="Error:variable"; }
 
   if (err) append(err,-9e99);
-  
+
   buttons.cmd->value("");
 
   if (debug) fprintf(stderr,"printcmd[%s]\n",printcmd);
@@ -509,7 +518,7 @@ static void cb_cmd(Fl_Widget* w,void *data) /************************ cb_cmd */
 {
   char *cmd=(char*)buttons.cmd->value(),*c;
 
-  // change ,->. so that decimal comma is accepted (not in -P)
+  // change ,->. so that decimal comma is accepted (not in option -P)
   for (c=cmd; *c; c++) if (*c==',') *c='.';
 
   fprintf(stderr,"%s\n",cmd);
@@ -570,7 +579,7 @@ static void cb_shift_down(Fl_Widget* w,void *data) /********** cb_shift_down */
     r[i].y+=L/8;
     if (r[i].y>=L) r[i].y-=L; }
 }
-  
+
 static void cb_shift_up(Fl_Widget* w,void *data) /************** cb_shift_up */
 {
   int i;
@@ -586,7 +595,7 @@ static void cb_shift_left(Fl_Widget* w,void *data) /********** cb_shift_left */
     r[i].x-=L/13;
     if (r[i].x<0) r[i].x+=L; }
 }
-  
+
 static void cb_shift_right(Fl_Widget* w,void *data) /******** cb_shift_right */
 {
   int i;
