@@ -2,7 +2,7 @@
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
 // g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "04/2025"
+#define VERSION "09/2025"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>

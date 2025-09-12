@@ -1,6 +1,6 @@
 # SIMOLANT
 
-Molecular simulation in 2D
+Molecular simulation in 2D. See directory `executables/` for the installation.
 
 ![SIMOLANT](sources/screenshot.png)
 
@@ -43,31 +43,26 @@ Molecular simulation in 2D
   * Coalescence of droplets
   * Double-minimum potential which might give the Penrose quasicrystal
   * Phase transition in the Vicsek model
-  
 
-## Licence
+## Original pages
+  * https://old.vscht.cz/fch/software/simolant/index-en.html
+  * https://old.vscht.cz/fch/software/simolant/index-cz.html (in Czech)
 
-* [GNU General Public License 3](https://www.gnu.org/licenses/gpl-3.0.html)
+## Licences
 
-## Original page
+Copyright (C) 2025 Jiří Kolafa
 
-* http://old.vscht.cz/fch/software/simolant/index-en.html
+This program is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.html) (GPLv3), as published by the Free Software Foundation.
 
-## Executables (including simolant.html)
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-Create a folder (directory), extract to this folder and run from it.
-_In Windows, do not run directly from "folder simolant-win32"!_
+This software was developed using the [GNU suite of tools](https://gcc.gnu.org/onlinedocs/libstdc++/manual/license.html) and the [FLTK cross-platform GUI tools](https://www.fltk.org/doc-1.3/license.html).
 
-* simolant-amd64.zip - for linux (64 bit)
-* simolant-win32.zip - for Microsoft Windows (32 bit)
+The following libraries included in the package for Windows are covered by the respective GPLv3-compatible licences:<br />
+zlib1.dll, libwinpthread-1.dll, libpng16-16.dll, libjpeg-8.dll, libgcc_s_seh-1.dll.
 
-## To do list
+## Acknowledgements
 
-* Warn on parameter change during recording
-* Improve pop up warnings
-* Linked-cell list to speed up
-* Include lattice models
-
-## Bugs/features
-
-* Gravity not part of the virial (should it be?)
+* Ivo Nezbeda (the first version of SIMOLANT was written in Pascal for a simulation seminar which was held at the Institute of Chemical Technology in about 1985).
+* Karel Matas (FLTK advise).
+* Numerous students using this software at the University of Chemistry and Technology, Prague and the Technical University Liberec.
