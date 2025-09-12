@@ -80,7 +80,8 @@ double trace=64; // length for draw mode Traces
 // the order is the same as in the menu; AUTO is not used (directly)
 enum method_e                {AUTO,       CREUTZ,         METROPOLIS,         MCNPT,              NVE,     BERENDSEN,         NOSE_HOOVER,         ANDERSEN,         MAXWELL,              LANGEVIN,         BUSSI,          MDNPT,             MTK,                   VICSEK,NTH}
   method=BUSSI,mauto;
-const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/NVT/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
+//UNICODE problem const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/NVT/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
+const char *methodinfo[NTH]={"NVT MC->MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/NVT/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
 int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selected MD starts
 #if 1
 #define NOERROR 0

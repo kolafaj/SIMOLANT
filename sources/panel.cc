@@ -8,7 +8,7 @@ void shorten(char *s) /********************************************* shorten */
 
   loop (i,0,8) {
     if (fl_width(s)<PANELW-14) break;
-    if ( (c=strstr(s,"N/⟨V⟩=")) ) memcpy(c,c+strlen("N/⟨V⟩="),strlen(c));
+    // UNICODE problem    if ( (c=strstr(s,"N/⟨V⟩=")) ) memcpy(c,c+strlen("N/⟨V⟩="),strlen(c));
     if ( (c=strstr(s,"N/<V>=")) ) memcpy(c,c+strlen("N/<V>="),strlen(c));
     if ( (c=strstr(s,"acc.r.")) ) memcpy(c+1,c+3,strlen(c));
     if ( (c=strstr(s,"gamma")) ) { memcpy(c+1,c+4,strlen(c)); c[1]='m'; }
@@ -252,17 +252,18 @@ private:
 
       fl_color(OI_BLUE);
 
-      const char *eq=dtfixed?"=":"⇒"; // ⇒ not shown?
+      const char *eq=dtfixed?"=":"->"; // ⇒ not shown
 
       if isMD(method) {
         if (method==MDNPT || method==MTK)
-          sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",Tav,eq,dt,rhoav);
+          //UNICODE problem          sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/⟨V⟩=%.4f",Tav,eq,dt,rhoav);
+          sprintf(s,"Tkin=%5.3f  dt%s%5.4f  ρ=N/<V>=%.4f",Tav,eq,dt,rhoav);
         else
           sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
         if (files.record) addM("Tkin",Tav); }
       else {
-        if (method==MCNPT)
-          sprintf(s,"Tbag=%5.3f  acc.r.=%.4f (V %.4f)  ρ=N/⟨V⟩=%.4f",
+        if (method==MCNPT) //UNICODE problem⟨⟩
+          sprintf(s,"Tbag=%5.3f  acc.r.=%.4f (V %.4f)  ρ=N/<V>=%.4f",
                   sum.Tk/iblock,sum.accr/iblock,sum.Vaccr/iblock,rhoav);
         else /* Metropolis, CREUTZ */
           sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",
@@ -799,9 +800,10 @@ public:
     sliders.T->tooltip("\
 THERMOSTAT TEMPERATURE T\n\
 \n\
-T ∈ [0.1, 5]\n\
+T in [0.1, 5]\n\
 Outside this range, use cmd: T=<value>.");
-
+    //UNICODE problem in/∈ several times here
+    
     sliders.tau=new Fl_Fill_Slider(atx, aty, 20, sh,"τ");
     sliders.tau->type(FL_VERT_FILL_SLIDER);
     sliders.tau->minimum(log(10));
@@ -811,7 +813,7 @@ Outside this range, use cmd: T=<value>.");
     sliders.tau->tooltip("\
 THERMOSTAT COUPLING TIME τ\n\
 \n\
-τ ∈ [0.1, 10].\n\
+τ in [0.1, 10].\n\
 Long τ means that the system is well insulated\n\
 from the thermostat. The system temperature\n\
 approaches the predefined value T slowly.\n\
@@ -1244,8 +1246,9 @@ SIMULATION SPEED\n\
 • right: every 10th frame shown with the selected FPS\n\
 • rightmost: max speed: as above, no delays, faster disk\n\
    drawing method for L>10; however, disks may overdraw text\n\
-→watch stride*block and delay in the 4th line\n");
-
+   watch stride*block and delay in the 4th line\n");
+    //→ UNICODE problem
+    
     //    sliders.block=new Fl_Fill_Slider(atx+W/2-26, aty,W/2-38, 20,"measurement block");
     sliders.block=new Fl_Fill_Slider(atx+PANELW/2-1, aty,PANELW/2-8, 20,"measurement block");
     sliders.block->type(FL_HOR_FILL_SLIDER);
@@ -1255,11 +1258,13 @@ SIMULATION SPEED\n\
     sliders.block->color(SLIDERCOLOR);
     sliders.block->tooltip("MEASUREMENT BLOCKING\n\
 \n\
-block ∈ [1, 100]\n\
+block in [1, 100]\n\
 Measurements (of kinetic temperature Tkin,\n\
 pressure P, RDF, etc.) are averaged in blocks\n\
 and shown/exported after a block has completed."); }
 
+  //∈ UNICODE problem
+  
   ~ButtonPanel() { }
 };
 

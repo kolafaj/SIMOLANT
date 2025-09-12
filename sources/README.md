@@ -26,11 +26,9 @@ This guide was provided by ChatGPT and tested on Windows 11.
   `pacman -Syu`
 * Use the 64-bit MinGW environment MSYS2 MINGW64 and install from the command line:<br />
   `pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-fltk`<br />
-  `pacman -S mingw-w64-x86_64-fltk-images`<br />
   `pacman -S mingw-w64-x86_64-fltk mingw-w64-x86_64-fltk-images`
 * <font color=gray>Optionally, use the (recommended) environment MSYS2 UCRT64:<br />
   `pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-fltk`<br />
-  `pacman -S mingw-w64-ucrt-x86_64-fltk-images`<br />
   `pacman -S mingw-w64-ucrt-x86_64-fltk mingw-w64-ucrt-x86_64-fltk-images`</font>
 * Verify:  <br />
   `g++ -dumpmachine' # should print: x86_64-w64-mingw32`<br />
@@ -38,7 +36,7 @@ This guide was provided by ChatGPT and tested on Windows 11.
 
 ### Notes about the MSYS2/Windows interface:
 
-* From the MSYS2 terminal, the Windows drives C:\, D:\ etc. are visible as /c/ /d/ etc.
+* From the MSYS2 terminal, the Windows drives C:\\ D:\\ are visible as /c/ /d/.
 * From the MSYS2 terminal, the Windows desktop is something like this (changes based on localization etc. are possible):<br />
   `/c/Windows/Users/<USER>/Desktop/`
 * From the Windows GUI, the MSYS2 is something like this (depending on your setup):<br />
@@ -57,7 +55,7 @@ This guide was provided by ChatGPT and tested on Windows 11.
   `LINK="-static-libgcc -static-libstdc++ -static -lfltk-images"`<br />
   `g++ -O2 simolant.cc -o simolant.exe $(fltk-config --ldstaticflags --use-images) $LINK`<br />
   The following libraries are not static and must be added to the installation ZIP:<br />
-  `cd /c/msys64/mingw64/bin/`<br />
+  `cd /c/msys64/mingw64/bin/` # or similar<br />
   `cp zlib1.dll libwinpthread-1.dll libpng16-16.dll libjpeg-8.dll libgcc_s_seh-1.dll DEST/`<br />
   where DEST/ is the directory with simolant.exe and simolant.html
 
