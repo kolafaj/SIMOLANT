@@ -473,11 +473,17 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         else ss.ncell=ival; }
       append("ncell",ss.ncell); }
 
-    else if (!nocasecmp(cmd,"v")) { /* velocity for Two drops */
+    else if (!nocasecmp(cmd,"drop.v") || !nocasecmp(cmd,"v")) { /* initial velocity for Two droplets */
       if (assign) {
         BRACKETVAL(val,0,10);
-        dropvel=val; }
-      append("v",dropvel); }
+        drop.v=val; }
+      append("drop.v",drop.v); }
+
+    else if (!nocasecmp(cmd,"drop.T")) { /* initial velocity for Two droplets */
+      if (assign) {
+        BRACKETVAL(val,0,1);
+        drop.T=val; }
+      append("drop.T",drop.T); }
 
     else if (!nocasecmp(cmd,"circle")) { /* circle drawing method */
       if (assign) circle.method=ival%3;

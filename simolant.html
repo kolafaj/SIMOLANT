@@ -349,10 +349,10 @@
 
     <li><b><u>P</u>rotocol name...</b><br>
       Change the name of the files used for printing measured quantities (see
-      the [▯&nbsp;record] button).  The default is <tt>simolant</tt>.  The
+      the [▫&nbsp;record] button).  The default is <tt>simolant</tt>.  The
       browser offers text files (extension <tt>.txt</tt>), which are always
       written if recording is selected.  If CSV (Comma-Separated Values) files
-      are to be recorded, see [▯ CSV] button, the extension <tt>.txt</tt> is
+      are to be recorded, see [▫ CSV] button, the extension <tt>.txt</tt> is
       changed to <tt>.csv</tt>.
 
     <li><b><u>E</u>xport force field</b><br>
@@ -585,7 +585,7 @@
       one or more sweeps.  It fluctuates in the course of the simulation.<br>
       By default, the trial displacement is determined automatically to reach
       the acceptance ratio of 0.3.  For productive runs, this should be turned
-      off by button [▯&nbsp;set&nbsp;MC&nbsp;move].
+      off by button [▫&nbsp;set&nbsp;MC&nbsp;move].
     </li>
 
     <a name="Metropolis"></a>
@@ -620,10 +620,10 @@
       If the barostat pressure is too low, the volume becomes too large.  In
       this case, an error is reported and the simulation switches to NVT.  You
       should change (increase) P from the cmd: input field.  Alternatively,
-      stop simulation by the [▯&nbsp;run] button, then switch to NPT, then use
-      the P-slider, then restart simulation by the [▯&nbsp;run] button.<br>
+      stop simulation by the [▫&nbsp;run] button, then switch to NPT, then use
+      the P-slider, then restart simulation by the [▫&nbsp;run] button.<br>
       The trial volume change is not available via a slider; use cmd: dV=VALUE
-      or automatic setup by button [▯&nbsp;set&nbsp;MC&nbsp;move].
+      or automatic setup by button [▫&nbsp;set&nbsp;MC&nbsp;move].
     <li><b>Molecular Dynamics (NV<u>E</u>)</b><br>
       Molecular dynamics (MD) calculates trajectories of molecules in time
       by numerical integration of the Newtonian equations of motion.
@@ -823,7 +823,7 @@
   <h3><font color="navy" face="sans"><i><u>S</u>how</i></font></h3>
 
   <p>Select quantities to measure and show and a graph to draw.  If button
-    [▯&nbsp;record] is pressed, the averages of the
+    [▫&nbsp;record] is pressed, the averages of the
     selected quantities and graphs (if selected in widget include:) are
     recorded.</p>
 
@@ -858,7 +858,7 @@
       It makes sense only in the slab geometry.<br>
 
       <font color=blue>MSDx, MSDy</font> = mean square displacement (MSD) measurement is started when
-      [▯&nbsp;record] is pressed.  The MSDs in x and y directions are
+      [▫&nbsp;record] is pressed.  The MSDs in x and y directions are
       calculated separately.  The formula is<br>
       &nbsp; &nbsp; MSDx(t) = ∑<sub>i</sub> [x<sub>i</sub>(0)−x<sub>i</sub>(t)]² / N<br>
       and is applied for the last configuration in a block.
@@ -877,7 +877,7 @@
         Kolafa: J. Mol. Liq. 134, 29–33 (2007)</a>).<br>
 
       All the following options include these extended measurements, which
-      are exported if <font face="helvetica">▯&nbsp;record</font> is pressed.</li>
+      are exported if <font face="helvetica">▫&nbsp;record</font> is pressed.</li>
 
     <li><b><u>E</u>nergy/enthalpy convergence profile</b><br>
 
@@ -1171,10 +1171,10 @@
   <ul>
     <li><b>record</b><br>
 
-      Turning the [▯&nbsp;record] button on will start recording the measured
+      Turning the [▫&nbsp;record] button on will start recording the measured
       values (of energies, pressure, etc.), including the convergence and density profiles if selected in the [include] pull-down menu. <br>
 
-      If the [▯&nbsp;record] button is turned off, averages of the measured
+      If the [▫&nbsp;record] button is turned off, averages of the measured
       quantities are displayed (with error estimates). You may choose from:
       <ul>
         <li><font face="helvetica">clear (data lost)</font> – measured data
@@ -1197,7 +1197,7 @@
 
     <li><b>CSV</b><br>
       The protocol will also be printed to a CSV file (1 line per
-      [▯&nbsp;record]); note that dt and d share the same column.<br>  Both
+      [▫&nbsp;record]); note that dt and d share the same column.<br>  Both
       the <font face="helvetica">simolant.txt</font>
       and <font face="helvetica">simolant.csv</font> contain the same
       informatiom, but <font face="helvetica">simolant.txt</font> is verbose
@@ -1251,8 +1251,8 @@
         <tr><td>block</td><td>slider</td><td>Measurements/block for statistics and graphs.</td></tr>
         <tr><td>circle</td><td></td><td>Circle drawing method (0=fl_pie, 1=fl_circle, 2=composed of fl_line). The default is circle=2 which works correctly also for the periodic boundary conditions, circle=0 or 1 are faster, but may partly overlap the right panel. May change for max. [simulation speed].</td></tr>
         <tr><td>c</td><td>(menu)</td><td>Potential cut-off.</td></tr>
-        <tr><td>d</td><td>slider</td><td>MC displacement (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
-        <tr><td>dV</td><td></td><td>MC change of ln(V)   (if [▯&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
+        <tr><td>d</td><td>slider</td><td>MC displacement (if [▫&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
+        <tr><td>dV</td><td></td><td>MC change of ln(V)   (if [▫&nbsp;set&nbsp;MC&nbsp;moves] is off).</td></tr>
         <tr><td>dt, h</td><td></td><td>Time step; 0=automatic.</td></tr>
         <tr><td>ff</td><td>menu</td><td>Force field (0=2DLJ,1=WCALJ,2=PD,3=DW).</td></tr>
         <tr><td>FPS</td><td>menu</td><td>Animation speed in Frames Per Second, see also <a href="#Tinker">Tinker</a>.</td></tr>

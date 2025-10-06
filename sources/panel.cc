@@ -68,8 +68,8 @@ protected:
 
       if (!shortmsg) t0=mytime();
 
-      switch (lasterrmessage) { // max 31 chars!
-        case MDFAILED: shortmsg="MD failed: switching to MC"; break;
+      switch (lasterrmessage) {// max 31 characters              <<<
+        case MDFAILED:  shortmsg="MD failed: switching to MC"; break;
         case NPTFAILED: shortmsg="NPT failed: switching to MC"; break;
         case MSDFAILED: shortmsg="MSD undefined: can't follow"; break;
         default:; }
@@ -214,7 +214,7 @@ private:
 
       if (isMC(method)) {
         Tav=T; // to be used in calculations of Pvir etc.
-        if (method==CREUTZ) Tav=sum.Ekin/iblock; }
+        if (method==CREUTZ) Tav=sum.Ekin/(N*iblock); }
 
       Fl_Box::draw();
 
@@ -262,7 +262,7 @@ private:
           sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
         if (files.record) addM("Tkin",Tav); }
       else {
-        if (method==MCNPT) //UNICODE problem⟨⟩
+        if (method==MCNPT) // UNICODE problem ⟨⟩
           sprintf(s,"Tbag=%5.3f  acc.r.=%.4f (V %.4f)  ρ=N/<V>=%.4f",
                   sum.Tk/iblock,sum.accr/iblock,sum.Vaccr/iblock,rhoav);
         else /* Metropolis, CREUTZ */
@@ -302,12 +302,11 @@ private:
           break;
 
         case TEMPERATURE:
-          if (isMC(method)) {
+          if (isMC(method))
             yaxis="Tbag";
-            CPval=sum.Ekin/iblock; /* this is the bag */ }
-          else {
+          else 
             yaxis="Tkin";
-            CPval=sum.Ekin/En.Nf*2/iblock; }
+          CPval=sum.Ekin/En.Nf*2/iblock; 
           break;
 
         case PRESSURE:
@@ -1010,9 +1009,9 @@ protected:
     fl_frame("XXAA",x(),y(),w(),h());
 
     fl_font(FL_HELVETICA,16);
-    fl_draw_box(FL_FLAT_BOX,atx,aty,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
+    fl_draw_box(FL_FLAT_BOX,atx,aty+88,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
     fl_color(FL_BLACK);
-    fl_draw(printcmd,atx+1,aty+17);
+    fl_draw(printcmd,atx+1,aty+105);
   }
 
 public:
@@ -1022,41 +1021,9 @@ public:
     box(FL_UP_BOX);
 
     int atx=X+6;
-    int aty=Y+6+PRINTHEIGHT+8;
+    int aty=Y+6;
 
     fl_font(FL_HELVETICA,16);
-
-    buttons.cmd=new Fl_Input(atx+38,aty,W-49,24,"cmd:");
-    buttons.cmd->callback(cb_cmd);
-    buttons.cmd->tooltip("\
-PARAMETERS\n\
-\n\
-Enter/print parameter:\n\
-  VARIABLE                   (print the value)\n\
-  VARIABLE=NUMBER (assign)\n\
-Both . and , allowed as dec. separator in NUMBER.\n\
-Selected available VARIABLEs are:\n\
-  block = measurement block\n\
-  d = trial displacement size (MC), in L/2\n\
-  dt = h = MD timestep; 0 = based on T,τ\n\
-  dV = relative trial volume change (NPT MC)\n\
-  g = gravity\n\
-  L = box size (ρ recalculated)\n\
-  N = number of atoms (L recalculated)\n\
-  P = pressure (NPT only)\n\
-  qtau, qτ = for MD/NPT: tauP=qtau*tau\n\
-  rho, ρ = number density (L recalculated)\n\
-  T = temperature (not NVE)\n\
-  tau, τ = thermostat time constant (MD)\n\
-  wall = wall number density\n\
-More VARIABLEs (see the manual):\n\
-  a b bc c circle ff fps method nbr\n\
-  ncell show speed trace v\n\
-Example:\n\
-  ρ=0.01\n\
-Values out of slider range may be accepted.");
-
-    aty+=30;
 
     incl=new Fl_Choice(atx+59,aty,W-70,25,"include:");
     incl->menu(inclitems);
@@ -1103,7 +1070,7 @@ Affects convergence profiles and distribution functions.\n\
 • If deselected, the outputs are in the protocol (.txt),\n\
    separated by tabulators.");
 
-    buttons.comma=new Fl_Light_Button(atx+W-87,aty,73,20,"comma");
+    buttons.comma=new Fl_Light_Button(atx+W-86,aty,73,20,"comma");
     //    buttons.comma=new Fl_Light_Button(atx+W-53,aty,40,20,"  , ");
     buttons.comma->selection_color(OI_GREEN);
     buttons.comma->tooltip("\
@@ -1113,6 +1080,40 @@ If selected, comma (,) will replace period (.)\n\
 in the recorded files. Also, the separator\n\
 in CSV files is changed into semicolon (;).\n\
 In the cmd: field, both . and , are accepted.");
+
+    aty+=28;
+
+    buttons.cmd=new Fl_Input(atx+38,aty,W-49,24,"cmd:");
+    buttons.cmd->callback(cb_cmd);
+    buttons.cmd->tooltip("\
+PARAMETERS\n\
+\n\
+Enter/print parameter:\n\
+  VARIABLE  (print the value)\n\
+  VARIABLE=NUMBER (assign)\n\
+Both . and , allowed as dec. separator in NUMBER.\n\
+Selected available VARIABLEs are:\n\
+  block = measurement block\n\
+  d = trial displacement size (MC), in L/2\n\
+  drop.T = temperature for Two droplets\n\
+  drop.v = velocity Two droplets\n\
+  dt = h = MD timestep; 0 = based on T,τ\n\
+  dV = relative trial volume change (NPT MC)\n\
+  g = gravity\n\
+  L = box size (ρ recalculated)\n\
+  N = number of atoms (L recalculated)\n\
+  P = pressure (NPT only)\n\
+  qtau, qτ = for MD/NPT: tauP=qtau*tau\n\
+  rho, ρ = number density (L recalculated)\n\
+  T = temperature (not NVE)\n\
+  tau, τ = thermostat time constant (MD)\n\
+  wall = wall number density\n\
+More VARIABLEs (see the manual):\n\
+  a b bc c circle ff fps method nbr\n\
+  ncell show speed trace v\n\
+Example:\n\
+  ρ=0.01\n\
+Values out of slider range may be accepted.");
   }
 };
 

@@ -40,7 +40,7 @@ private:
           // color half AFTER MC
           y_split();
         else if (lastcfg==TWODROPS) {
-          double dv=dropvel/(1.4142135623730952*2);
+          double dv=drop.v/(1.4142135623730952*2);
           loop (i,0,N) {
             if (i==N/2) dv=-dv;
             v[i].x+=dv;
@@ -238,6 +238,7 @@ private:
             Econserved=En.Upot+bag;
             sum.Econserved+=Econserved; } }
 
+        degrees_of_freedom();
         if (isMD(method))
           MDstep(Pneeded);
         else {

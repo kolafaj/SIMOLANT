@@ -402,12 +402,12 @@ EXAMPLE:\n\
     fprintf(stderr,"Use option -H to get simolant options\n");
     exit(0); }
 
+  if (ss.ff==NFF) ss.ff=LJ; // this is because INITVICSEK sets ss.ff=PD
+  setss(ss.ff,CUTOFF); // if -P contains T, calculateB2 must have parameters set
+
   ext=getext(fn);
   if (ext && !strcmp(ext,".sim")) loadsim(fn); // name.sim => load it
   else initcfg(init); // no .ext=.sim => is a number
-
-  if (ss.ff==NFF) ss.ff=LJ; // this is because INITVICSEK sets ss.ff=PD
-  setss(ss.ff,CUTOFF); // if -P contains T, calculateB2 must have parameters set
 
   if (optionP) {
     // reading option -P: decimal separator=period, command separator=comma

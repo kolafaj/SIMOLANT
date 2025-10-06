@@ -7,7 +7,7 @@ You need gcc/g++ and FLTK (V1.1+).
 * To install the compiler and FLTK (V1.3) in deb-based distros:<br />
   `sudo apt install g++ libx11-dev libfltk1.3-dev`
 * Unzip SIMOLANT and select the `sources/` directory; e.g.:<br />
-  `cd simolant/souces/`
+  `cd simolant/sources/`
 * Compile SIMOLANT (with dynamic linking, optimized, debug flag, safe stack etc.):<br />
   `fltk-config --use-images --compile simolant.cc`
 
@@ -45,7 +45,7 @@ This guide was provided by ChatGPT and tested on Windows 11.
 ### Compile SIMOLANT:
 
 * Unzip SIMOLANT and select the `sources/` directory; e.g.:<br />
-  `cd simolant/souces/`
+  `cd simolant/sources/`
 * Compile SIMOLANT (simple, dynamic linking, to start from MSYS2):<br />
   `fltk-config --use-images --compile simolant.cc`
 * As above with better control:<br />
@@ -54,7 +54,7 @@ This guide was provided by ChatGPT and tested on Windows 11.
 * Compile with partly static linking:<br />
   `LINK="-static-libgcc -static-libstdc++ -static -lfltk-images"`<br />
   `g++ -O2 simolant.cc -o simolant.exe $(fltk-config --ldstaticflags --use-images) $LINK`<br />
-  The following libraries are not static and must be added to the installation ZIP:<br />
+  The following libraries are not static and must be added to the installation ZIP (example):<br />
   `cd /c/msys64/mingw64/bin/` # or similar<br />
   `cp zlib1.dll libwinpthread-1.dll libpng16-16.dll libjpeg-8.dll libgcc_s_seh-1.dll DEST/`<br />
   where DEST/ is the directory with simolant.exe and simolant.html
@@ -64,7 +64,7 @@ See also `winmake.sh`.
 ## macOS
 
 I am not a Mac user. I suspect that it is in not possible to run a home-made
-executable on a different machine without being approved by authorities.  Bases on info from my former students:
+executable on a different machine without being approved by authorities.  This is some info from my former Mac-bound students:
 
 * To compile under macOS, Clang is recommended. You need FLTK (V1.1+).
 * Info on [the old page](http://old.vscht.cz/fch/software/simolant/index-en.html) may help

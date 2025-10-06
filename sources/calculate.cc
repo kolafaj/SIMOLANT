@@ -50,7 +50,6 @@ double L=20,Lh; /* box size, Lh=L/2 */
 double T=3; /* temperature as NVT parameter */
 double P=1; /* pressure as NPT parameter */
 double qtau=5; /* tauP/tau, for Berendsen and MTK barostat */
-double dropvel=1; /* velocity for function TWODROPS */
 double Tk; /* Tk = averaged kinetic T (MD) or demon T (Creutz MC) */
 double bag; /* Creutz daemon bag */
 double d=0.5; /* MC displacement, in Lh=L/2 */
@@ -75,6 +74,10 @@ struct circle_s {
 int iblock,block; // also slider (stride moved to speed.stride)
 int nimg; // for cutoff>Lh: number of images
 double trace=64; // length for draw mode Traces
+struct drop_s { /* for function TWODROPS */
+  double v=0.5; /* initial velocity */
+  double T=0.4; /* initial temperature */
+} drop;
 
 // method: thermostat/barostat/MC/MD
 // the order is the same as in the menu; AUTO is not used (directly)
@@ -130,8 +133,10 @@ double dt=0.02,dtadj=0.02,dtfixed; /* MD timestep, adaptive version, fixed */
 struct En_s {
   vector P;  // diagonal components of the pressure tensor, P_cfg
              // (first, the virial only, then the kin part is added)
-  vector Ek; // ∑ vx², ∑ vy², then corrected by qx,qy and 1/2
-  double Ekin; // total kinetic energy = (Ek.x+Ek.y)/2
+  vector Ek; // MD: ∑ vx², ∑ vy², then corrected by qx,qy and /2
+             // MC: sum of bag energy over N MC steps (x,y the same)
+  double Ekin; // MD: total kinetic energy = (Ek.x+Ek.y)/2
+               // MC: sum of bag energy over N MC steps
   vector q; // kinetic pressure corrections:
             //   En.Ek*=En.q; P=(virial+Ek)/L² (diagonal terms)
   double fwx,fwxL,fwy,fwyL; // direct pressure on walls
@@ -139,7 +144,7 @@ struct En_s {
   double H; // enthalpy
   vector momentum; // averaged total momentum (velocity), good for Vicsek
   vector MSD; // mean square displacement
-  int Nf; // see degrees_of_freedom(); 1 for MC (1 degree of Creutz's bag)
+  int Nf; // see degrees_of_freedom();
 } En; // similar as in MACSIMUS
 
 /*
@@ -200,20 +205,19 @@ double sqr(double x) /************************************************** sqr */
 void degrees_of_freedom() /****************************** degrees_of_freedom */
 {
   En.q.x=En.q.y=1;
-  if (isMC(method)) {
-    En.Nf=N; // 1 for Creutz's bag * N attempted moves in a sweep
-    return; }
-  
+
   En.Nf=2*N;
-  if (method!=ANDERSEN && method!=LANGEVIN && method!=VICSEK && method!=MAXWELL)
-    switch (bc) {
-      case BOX: break;
-      case SLIT:
-        En.q.x=(double)N/(N-1);
-        En.Nf=2*N-1; break;
-      case PERIODIC:
-        En.q.x=En.q.y=(double)N/(N-1);
-        En.Nf=2*N-2; break; }
+  if (isMC(method) || method==ANDERSEN || method==LANGEVIN || method==VICSEK || method==MAXWELL) return;
+
+  switch (bc) {
+    case BOX: break;
+    case SLIT:
+      En.q.x=(double)N/(N-1);
+      En.Nf=2*N-1; break;
+    case PERIODIC:
+      En.q.x=En.q.y=(double)N/(N-1);
+      En.Nf=2*N-2; break; }
+
   if (method==MTK) En.q.x=En.q.y=1;
 }
 
@@ -420,13 +424,55 @@ void MCreset(method_e th) /***************************************** MDreset */
 
 enum cfg_t lastcfg; // for DIFFUSION (color half AFTER MC) and TWODROPS
 
+void preopt(int from,int to,double xy0,double RR) /****************** preopt */
+/* remove worst overlaps for particles in [from,to)
+   in disk centered (xy0,xy0) and radius sqrt(rr) */
+{
+  int i,j;
+  vector rt;
+  double d=0.3,rr,ff;
+  // printf("%d -3\n",N);
+
+  while (d>0.05) {
+
+    loop (i,from,to)
+      a[i].x=a[i].y=0;
+
+    loop (i,from,to) {
+      rt.x=r[i].x-xy0;
+      rt.y=r[i].y-xy0;
+      rr=Sqr(rt.x)+Sqr(rt.y);
+      ff=rr-RR;
+      if (ff>0) { a[i].x-=rt.x*ff; a[i].y-=rt.y*ff; }
+      
+      loop (j,i+1,to) {
+        rt.x=r[i].x-r[j].x; rt.y=r[i].y-r[j].y;
+        ff=f(Sqr(rt.x)+Sqr(rt.y));
+        a[i].x+=rt.x*ff; a[i].y+=rt.y*ff;
+        a[j].x-=rt.x*ff; a[j].y-=rt.y*ff; } }
+    // printf("%g %g 1\n",L,L);
+
+    loop (i,from,to) {
+      ff=Sqr(a[i].x)+Sqr(a[i].y);
+      if (ff>1) {
+        ff=sqrt(ff);
+        a[i].x/=ff;
+        a[i].y/=ff; }
+      r[i].x+=a[i].x*d;
+      r[i].y+=a[i].y*d;
+      // printf("%g %g 0\n",r[i].x,r[i].y);
+    }
+    
+    d*=0.9; }
+}
+
 void initcfg(enum cfg_t cfg) /************************************** initcfg */
 {
   int i,j,k,ii;
   double ff;
   vector rt;
-  //static int first=1;
-
+  double RR;
+  
   lastcfg=cfg;
 
   mauto=BUSSI;
@@ -441,7 +487,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   molsize->value(0); // full size
 
   MCreset(METROPOLIS);
-  d=0.1;
+  d=1./sqrt(N);
   gravity=0;
   walls=0;
   bc=BOX;
@@ -525,12 +571,13 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
       Show=RPROFILE;
+      RR=0.48*N; // RR=0.5*N ⇒ ρ=2/π=0.6366 (better slightly < ρ(l)
       loop (i,0,N) {
-        do {
-          r[i].x=rnd()*L; r[i].y=rnd()*L; }
-        while (Sqr(r[i].x-Lh)+Sqr(r[i].y-Lh)>N/2); }
+        do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
+        while (Sqr(r[i].x-Lh)+Sqr(r[i].y-Lh)>RR); }
+      preopt(0,N,Lh,RR);
       T=0.6;
-      mcstart=50;
+      mcstart=20;
       break;
 
     case TWODROPS:
@@ -538,18 +585,23 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
       Show=TEMPERATURE;
-      method=NVE;
+      RR=0.23*N;
+      mauto=NVE;
       loop (i,0,N/2) {
         do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
-        while (Sqr(r[i].x-Lh/2)+Sqr(r[i].y-Lh/2)>N/4);
+        while (Sqr(r[i].x-Lh/2)+Sqr(r[i].y-Lh/2)>RR);
         molcol[i]=OI_RED; }
+      preopt(0,N/2,Lh/2,RR);
       loop (i,N/2,N) {
         do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
-        while (Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>N/4);
+        while (Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>RR);
         molcol[i]=OI_BLUE; }
+      preopt(N/2,N,Lh*1.5,RR); 
 
+      d=0.3/sqrt(N);
+      mcstart=50; // causes also set velocity of the droplets
       colormode->value(CM_KEEP);
-      T=0.5;
+      T=drop.T;
       break;
 
     case CAPILLARY:
@@ -880,12 +932,11 @@ void MDstep(int Pneeded) /******************************************* MDstep */
 
   if (method!=MDNPT) Pneeded=0;
   if (method==MTK) Pneeded=1;
-  /* Pneeded = pressure is calculated here because it will be needed for a barostat:
-     MTK needs Ptensor calculated every step
-     MDNPT needs Ptensor in the last step of a sweep unless it is calculated
-     in this step by meas() due to measure condition */
+  /* Pneeded: pressure is calculated here because it will be needed for a barostat:
+     - MTK needs Ptensor calculated every step
+     - MDNPT needs Ptensor in the last step of a sweep unless it is calculated
+       in this step by meas() due to measure condition */
 
-  degrees_of_freedom();
   nimg=ss.C2/L+1; // # of replicas if cutoff<Lh
 
   dtadjset();
@@ -922,7 +973,7 @@ void MDstep(int Pneeded) /******************************************* MDstep */
   if (ss.C2>Lh) ss.ncell=1;
 
   /* calculate atom-atom pair forces; for MTK also the virial of force */
-  if (ss.ncell>1) {
+  if (ss.ncell>1) { // linked-cell list method
     DO_f *DO = Pneeded ? MDlcPneeded : MDlc;
     ss.Clc=ss.C2; // might be a tiny bit < C2 to neglect corners
     if (method==VICSEK) DO=MDlcVicsek;
@@ -1228,7 +1279,7 @@ Switching to Metropolis Monte Carlo...");
       L*=ff; Lh=L/2;
       sliders.rho->value(log(L2rho(L)));
       loop (i,0,N) { r[i].x*=ff; r[i].y*=ff; }
-      // printf("Nf=%d mom=%g %g\n",Nf,momentum.x,momentum.y);
+      // printf("Nf=%d mom=%g %g\n",En.Nf,momentum.x,momentum.y);
       // printf("%g %g %g %g %g %g %g\n",Econserved+Upot,Ekin,Upot,xikin,xipot,lakin,P*Sqr(L));
       break;
 
@@ -1263,9 +1314,9 @@ void MCsweep(void) /************************************************ MCsweep */
   Lh=L/2;
   nimg=ss.C2/L+1; // # of replicas if cutoff>Lh
 
-  En.Ekin=0; // Creutz's bag temperature
+  En.Ekin=0; // = sum of Creutz's bag over N attempted steps
 
-  loop (i,0,N) { // 1 sweep = N attempted MC moves ⇒ Nf=N (see degrees_of_freedom)
+  loop (i,0,N) { // 1 sweep = N attempted MC moves
     if (d>1) d=1;
 
     /* trial move of atom i */
@@ -1360,7 +1411,7 @@ void MCsweep(void) /************************************************ MCsweep */
     En.Ekin+=bag;
   } /*N*/
 
-  Tk=En.Ekin/N; // Nf=N
+  Tk=En.Ekin/N; // consistent with Tk=2*Ekin/Nf in MD (Nf=2N)
 
   if (isdauto) sliders.d->value(log(d)/DSCALE);
 
@@ -1511,7 +1562,8 @@ void neighbors(void) /******************************************** neighbors */
 
 // return the last single extension .ext (last .)
 // FILE. => zero-length string
-// BUG: \ is treated as directory seperator in linux
+// BUG: \ is treated as directory separator in linux
+
 const char *getext(const char *fn) /********************************* getext */
 {
   const char *c,*d;

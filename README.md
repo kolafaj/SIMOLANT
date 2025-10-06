@@ -58,8 +58,9 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 This software was developed using the [GNU suite of tools](https://gcc.gnu.org/onlinedocs/libstdc++/manual/license.html) and the [FLTK cross-platform GUI tools](https://www.fltk.org/doc-1.3/license.html).
 
-The following libraries included in the package for Windows are covered by the respective GPLv3-compatible licences:<br />
-zlib1.dll, libwinpthread-1.dll, libpng16-16.dll, libjpeg-8.dll, libgcc_s_seh-1.dll.
+The following libraries included in the package for Windows (64 bit) are
+covered by the respective GPLv3-compatible licences:<br />
+`zlib1.dll, libwinpthread-1.dll, libpng16-16.dll, libjpeg-8.dll, libgcc_s_seh-1.dll`.
 
 ## Acknowledgements
 

@@ -262,7 +262,8 @@ Parameters:\n\
   qx,qy=%g,%g kinetic pressure correction factors\n\
   T=%g temperature -> B=%g (2nd virial coefficient)\n\
   P=%g pressure\n\
-  g=%g gravity\n",
+  g=%g gravity\n\
+  drop.v=%g drop.T=%g v and T for two droplets\n",
                 files.nmeas,
                 FFinfo(1),
                 N,
@@ -272,7 +273,8 @@ Parameters:\n\
                 En.q.x,En.q.y,
                 T,ss.B2,
                 P,
-                gravity);
+                gravity,
+                drop.v,drop.T);
         comma(lout);
         fputs(lout,out);
 
