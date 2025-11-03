@@ -275,7 +275,10 @@ private:
 
       if (files.record) {
         sprintf(s,"n=%d",n);
-        fl_draw(s,atx+PANELW-11-fl_width(s),aty); }
+        fl_font(FL_HELVETICA+FL_BOLD,16);
+
+        fl_draw(s,atx+PANELW-11-fl_width(s),aty);
+        fl_font(FL_HELVETICA,16); }
 
       aty+=20;
 

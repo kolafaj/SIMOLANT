@@ -93,7 +93,7 @@ int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selecte
 #define MSDFAILED 3
 int errmessage=NOERROR;
 #else
-// this line causes ERROR "expected identifier before {" on Windows:
+// Win 32 compiler bug here: this line causes ERROR "expected identifier before {"
 enum errmessage_e {NOERROR,MDFAILED,NPTFAILED,MSDFAILED} errmessage=NOERROR;
 #endif
 int lasterrmessage=NOERROR;

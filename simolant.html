@@ -1,9 +1,9 @@
 <head>
-  <title>SIMOLANT 09/2025</title>
+  <title>SIMOLANT 10/2025</title>
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 <body>
-  <h1><font color="NAVY" face="SANS">SIMOLANT 09/2025</font></h1>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 10/2025</font></h1>
 
 <!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
 
@@ -46,6 +46,7 @@
         <li><a href="#Switches">Switches</a></li>
         <li><a href="#Speed">Simulation speed and measurement blocking</a></li>
       </ul>
+    <li><a href="#Errors">Error messages</a></li>
     <li><a href="#Command">Command line options</a></li>
     <li><a href="#Bugs">Known bugs and caveats</a></li>
     <li><a href="#Copy">Copying and Credits</a></li>
@@ -390,7 +391,7 @@
       diffusion.
 
     <li><b>+ G<u>r</u>avity</b><br> Gas in a gravitational field.  Watch the
-      vertical density profile (use sliders simulation speed and Measurement
+      vertical density profile (use sliders simulation speed and measurement
       block for better precision).</li>
 
     <li><b>Vapor-liquid <u>e</u>quilibrium</b> <br>
@@ -464,7 +465,7 @@
     <li><b>+ <u>E</u>dge defect</b><br>
       A piece of crystal with an edge dislocation.  The defect quickly
       travels through the crystal and eventually disappears at the
-      crystal surface.  Use slide simulation speed if this is too fast.
+      crystal surface.  Use slider simulation speed if this is too fast.
 
     <li><b>+ <u>V</u>acancy</b><br>
       One missing atom in a perfect crystal. This defect slowly diffuses.</li>
@@ -890,8 +891,8 @@
       <br>
       <b>Hints:</b><br>
       &nbsp; &nbsp; Reset the graph by button [reset].<br>
-      &nbsp; &nbsp; Move slider <b>simulation speed</b> so that stride=1.<br>
-      &nbsp; &nbsp; Use slider <b>measurement block</b> as needed.
+      &nbsp; &nbsp; Move slider simulation speed so that stride=1.<br>
+      &nbsp; &nbsp; Use slider measurement block as needed.
     </li>
 
     <li><b><u>T</u>emperature</b><br>
@@ -971,7 +972,7 @@
     <li><b>FPS=<u>1</u>5</b><br>
 
       Set the number of frames per second to 15. The real FPS may be changed
-      by slider [simulation speed]. Also, if the simulation takes a longer
+      by slider simulation speed. Also, if the simulation takes a longer
       time, the real FPS is slower.
 
     <li><b>FPS=<u>3</u>0</b><br>
@@ -1055,7 +1056,7 @@
     <tr><td><font face="helvetica">P</font></td><td> Pressure (parameter of a NPT simulation)</td></tr>
     <tr><td><font face="helvetica">stride</font></td><td> stride MD steps or MC sweeps is performed between drawing the configuration and measuring quantities.</td></tr>
     <tr><td><font face="helvetica">block</font></td><td> Number of measurements in one block (by <font face="helvetica">stride</font> MC sweeps or MD steps).</td></tr>
-    <tr><td><font face="helvetica">#.###+#.### ms</font></td><td> This is technical info. The first number is the timer constant in millisecond determined from menu Tinker → FPS (Frames Per Second), slider [simulation speed], and menu Tinker → Timeout (for the slider at maximum speed).  The second number is the additional time needed: If the CPU time of one cycle (of stride steps) is less than 1/FPS, the it should oscillate around zero (delays are inserted to reach frame rate FPS).  If the second number is large and positive, the calculation cannot be tan within one frame and the movie slows down.</td></tr>
+    <tr><td><font face="helvetica">#.###+#.### ms</font></td><td> This is technical info. The first number is the timer constant in millisecond determined from menu Tinker → FPS (Frames Per Second), slider simulation speed, and menu Tinker → Timeout (for the slider at maximum speed).  The second number is the additional time needed: If the CPU time of one cycle (of stride steps) is less than 1/FPS, the it should oscillate around zero (delays are inserted to reach frame rate FPS).  If the second number is large and positive, the calculation cannot be tan within one frame and the movie slows down.</td></tr>
     <tr><td><font face="helvetica">ncell</font></td><td>See <a href="#Linklist">here</a> for details.</td></tr>
   </table>
   <p>The following quantities are shown during simulation in the right panel and also printed to the protocol and convergence profiles.</p>
@@ -1358,9 +1359,56 @@
       data.</li>
   </ul>
 
+  <a name="Errors"></a>
+  <h2><font color="NAVY" face="SANS">Error messages</font></h2>
+
+  <p>There are three transient error messages that are fixed during execution.
+    They appear for 2.5 s as red text in yellow box, then a brief message is
+    repeated in right top corner.  The display time dcreases if the same type of
+    error message appears again.</p>
+
+  <ul>
+    <li>
+      If an overlap and/or too long time step happens during molecular
+      dynamics so that the integrator crashes, the following message
+      appears:<br>
+      <font color=red face=helvetica>
+        Molecular dynamics failed!<br>
+        Switching temporarily to Monte Carlo.<br>
+      </font>
+      Possible overlaps are thus removed.  The simulation then returns to the
+      same MD type as before.  If the reason for the crash is not fixed, the
+      error will repeat.</li>
+    <li>
+      During recording data in the periodic or slit boundary conditions and a
+      long block and stride, a particle may travel for too a long distance so
+      that its trajectory over periodic images cannot be reconstructed.
+      The message is:<br>
+      <font color=red face=helvetica>
+        Cannot follow periodic b.c.!<br>
+        MSD turned off for now.<br>
+      </font>
+      <ul>
+        <li>
+          If you are not interested in MSD (mean-square displacement) and
+          diffusivity, you may safely ignore this message.</li>
+        <li>
+          If you want to calculate MST(t) and diffusivity, you should decrase the measurement block and/or the stride (slider simulation speed).</li>
+      </ul>
+    </li>
+    <li>If too large box is detected in the NPT calculation with too low (perhaps negative) pressure, SIMOLANT says:<br>
+      <font color=red face=helvetica>
+        Too low density in NPT ensemble!<br>
+        Switching to Metropolis MC.<br>
+      </font>
+      You should fix the parameters and start the NPT simulation again (it is
+      not done automatically because often Berendesn NPT should be used before
+      Martuna et al. NPT is started).</li>
+  </ul>
+
   <a name="Command"></a>
   <h2><font color="NAVY" face="SANS">Command line options</font></h2>
-
+      
   <b><font color="magenta">FILE</font>.sim</b>
 
   <p> An argument without leading hyphen is considered as a sim-file and loaded.</p>
@@ -1407,6 +1455,7 @@
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
   <ul>
+    <li>10/2025 Error messages for the 2nd time shown in a shorter time.</li>
     <li>09/2025 Minor fixes, some problematic UNICODE characters (∈ → ⇒ ⟨⟩ −) replaced (not in simolant.html and comments), Win64 exe</li>
     <li>04/2025 Berendsen NPT bug (small density) fixed, error messages
       improved</li>

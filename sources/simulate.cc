@@ -261,7 +261,7 @@ private:
 
       sum.H+=En.H;
       sum.Ekin+=En.Ekin;
-      
+
       if (method==NOSE_HOOVER || method==MTK)
         sum.Econserved+=Econserved+En.Upot;
 
@@ -386,7 +386,7 @@ private:
       loop (i,1,N) if (molcol[i]!=molcol[0]) { cmode=CM_YSPLIT; break; }
       if (cmode==CM_BLACK) fl_color(molcol[0]);
 
-      // Use circle=0 (faster but less precise) disk drawing method 
+      // Use circle=0 (faster but less precise) disk drawing method
       // is the box is periodic in x and L>10 and slow circle=2 is used
       circle.opt=circle.method;
       if (speed.fast && circle.method==2) circle.opt=0;
@@ -488,22 +488,24 @@ private:
       int atx=BOXSIZE+BORDER+6,aty=MENUH;
 
       fl_color(OI_YELLOW);
-      fl_rectf(atx,aty,PANELW,72);
-      // fl_rectf(BORDER,BORDER+MENUH,640,90);
-      fl_font(FL_HELVETICA,25);
-      atx+=5; aty+=28;
+      fl_rectf(atx,aty,PANELW,70);
+      fl_font(FL_HELVETICA+FL_BOLD,25);
+      aty+=28;
       fl_color(OI_RED);
       // see Fl::repeat_timeout() below
       if (errmessage==MDFAILED) {
         wasMDerror++;
-        fl_draw("Molecular Dynamics failed!",atx,aty); aty+=30;
-        fl_draw("Switching temporarily to Monte Carlo…",atx,aty); }
+        atx+=3;
+        fl_draw("Molecular dynamics failed!",atx,aty); aty+=30;
+        fl_draw("Switching temporarily to Monte Carlo.",atx,aty); }
       else if (errmessage==MSDFAILED) {
+        atx+=10;
         fl_draw("Cannot follow periodic b.c.!",atx,aty); aty+=30;
-        fl_draw("MSD turned off for now…",atx,aty); }
+        fl_draw("MSD turned off for now.",atx,aty); }
       else {
+        atx+=5;
         fl_draw("Too low density in NPT ensemble!",atx,aty); aty+=30;
-        fl_draw("Switching to Metropolis MC…",atx,aty); }
+        fl_draw("Switching to Metropolis MC.",atx,aty); }
       fl_font(FL_HELVETICA,16);
       fl_color(FL_BLACK); }
   }
@@ -582,11 +584,6 @@ private:
 
     files.record=buttons.record->value();
 
-#if 0 // OLD
-    /* this sets t=0 for the whole 1st block -- why? */
-    if (files.record && head==NULL) t=0;
-#endif
-
     if (files.record && !files.record0) {
       int i;
 
@@ -616,9 +613,19 @@ private:
 
     /* info message red-on-yellow pops up for 2 s */
     if (errmessage) {
+      double errmsgtimeout=2.5;
+      // static enum errmessage_e preverrmessage=NOERROR; not WIN32
+      static int preverrmessage=NOERROR;
+
+      // the same type of error message shown for a shorter time
+      if (preverrmessage==errmessage)
+        errmsgtimeout=1.5-(errmessage==MSDFAILED);
+//      fprintf(stderr,"errmsgtimeout=%g\n",errmsgtimeout);
+      preverrmessage=errmessage;
+      
       lasterrmessage=errmessage; // passes to the top right panel
       errmessage=NOERROR;
-      Fl::repeat_timeout(2, timer_callback, userdata); }
+      Fl::repeat_timeout(errmsgtimeout, timer_callback, userdata); }
     else
       Fl::repeat_timeout(speed.timerdelay, timer_callback, userdata);
   }
