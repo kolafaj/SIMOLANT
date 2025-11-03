@@ -279,9 +279,12 @@ Parameters:\n\
         fputs(lout,out);
 
         if (files.csv) {
-          if (files.nmeas==1)
-            // cf. info2csv below
-            fprintf(files.csv,"#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err,MSDx,at_t,MSDy,at_t,momentum\n");
+          if (files.nmeas==1) {
+            // CSV header: cf. info2csv below
+            static char hdr[]="#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err,MSDx,at_t,MSDy,at_t,momentum\n";
+            char *x; // change separator
+            for (x=hdr; *x ; x++) if (strchr(",;",*x)) *x=files.sep;
+            fputs(hdr,files.csv); }
           fprintf(files.csv,"%d",files.nmeas);
           prtcsv(N);
           prtcsv(bc);

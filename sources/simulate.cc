@@ -613,13 +613,13 @@ private:
 
     /* info message red-on-yellow pops up for 2 s */
     if (errmessage) {
-      double errmsgtimeout=2.5;
+      double errmsgtimeout=3;
       // static enum errmessage_e preverrmessage=NOERROR; not WIN32
       static int preverrmessage=NOERROR;
 
       // the same type of error message shown for a shorter time
       if (preverrmessage==errmessage)
-        errmsgtimeout=1.5-(errmessage==MSDFAILED);
+        errmsgtimeout=2-(errmessage==MSDFAILED);
 //      fprintf(stderr,"errmsgtimeout=%g\n",errmsgtimeout);
       preverrmessage=errmessage;
       
