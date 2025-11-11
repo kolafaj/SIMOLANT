@@ -141,14 +141,15 @@ void info2csv(const char *key) /*********************************** info2csv */
     c+=2;
     fputc(files.sep,files.csv);
     while ((unsigned)*c>' ') { fputc(*c,files.csv); c++; }
-    c++;
-    while ((unsigned)*c>' ') c++;
+    if (*c++<' ') goto baderr; // if \n
+    while ((unsigned)*c>' ') c++; // +- or ±
     c++;
     fputc(files.sep,files.csv);
     while ((unsigned)*c>' ') { fputc(*c,files.csv); c++; }
     return; }
  bad:
   prtcsv("n.a.");
+ baderr:
   prtcsv("n.a.");
 }
 
@@ -180,8 +181,8 @@ int showclearM() /*********************************************** showclearM */
 
   // recording just has turned off
 
-  // generate info string to pop up and write to a file
-  // also, csv generated from this (cumbersome...)
+  // Generate info string to pop up and write to a file
+  // AND generate CSV from this (cumbersome).
   end=files.info;
 
   looplist (a,head) {
@@ -204,6 +205,7 @@ int showclearM() /*********************************************** showclearM */
 %2d blocks (block length=%d, stride=%d)\n\
 ----------------------------------------\n\
 quantity = average ± standard error (relative standard error)\n\
+-------------------------------------------------------------\n\
 ",a->n,block,speed.stride);
 
     end+=sprintf(end,"%s = %g%s\n", a->name, av,serr); }
@@ -259,7 +261,7 @@ Parameters:\n\
   bc=%s boundary conditions\n\
   method=\"%s\"\n\
   Nf=%d degrees of freedom\n\
-  qx,qy=%g,%g kinetic pressure correction factors\n\
+  qx=%g qy=%g kinetic pressure correction factors\n\
   T=%g temperature -> B=%g (2nd virial coefficient)\n\
   P=%g pressure\n\
   g=%g gravity\n\
@@ -281,7 +283,7 @@ Parameters:\n\
         if (files.csv) {
           if (files.nmeas==1) {
             // CSV header: cf. info2csv below
-            static char hdr[]="#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed.stride,block,Etot,err,Tkin,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econserved,err,MSDx,at_t,MSDy,at_t,momentum\n";
+            static char hdr[]="#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed,block,Etot,err,Tkin|bag,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econs,err,MSDx,at_t,MSDy,at_t,momentum\n";
             char *x; // change separator
             for (x=hdr; *x ; x++) if (strchr(",;",*x)) *x=files.sep;
             fputs(hdr,files.csv); }
@@ -301,8 +303,7 @@ Parameters:\n\
           prtcsv(ss.b);
           prtcsv(tau);
           prtcsv(qtau);
-          if (isMC(method)) prtcsv(dt);
-          else prtcsv(d);
+          if (isMC(method)) prtcsv(dt); else prtcsv(d);
           prtcsv(dV);
           prtcsv(speed.stride);
           prtcsv(block); }
@@ -360,38 +361,39 @@ Parameters:\n\
         fprintf(out,"\n----------------------------------------\n");
         fputs(files.info,out);
         // fprintf(stderr,"strlen(files.info)=%d\n",(int)(strlen(files.info)));
-        // ~650 bytes detected ⇒ files.info: char info[1024] = safe size
+        // 590..730 bytes detected ⇒ files.info: char info[1024] is safe
 
         if (files.csv) {
-          // writing csv from re-parsed info string
-          // the order in info may differ
-          // should match the CSV header
-          info2csv("Etot");
-          info2csv("Tkin");
-          info2csv("Epot");
-          info2csv("V");
-          info2csv("Z");
-          info2csv("Pvir");
-          info2csv("Pxx");
-          info2csv("Pyy");
-          info2csv("γ");
-          info2csv("H");
-          info2csv("P(right_wall)");
-          info2csv("P(left_wall)");
-          info2csv("P(top_wall)");
-          info2csv("P(bottom_wall)");
-          info2csv("Econserved");
-          info2csv("MSDx");
-          info2csv("MSDy");
-          info2csv("momentum");
+          // Writing CSV from re-parsed info string.
+          // The order of names in info may differ (is searched for).
+          // The order should match the CSV header!
+          info2csv("Etot ");
+          info2csv(isMC(method)?"Tbag ":"Tkin ");
+          info2csv("Epot ");
+          info2csv("V ");
+          info2csv("Z ");
+          info2csv("Pvir ");
+          info2csv("Pxx ");
+          info2csv("Pyy ");
+          info2csv("γ ");
+          info2csv("H ");
+          info2csv("P(right_wall) ");
+          info2csv("P(left_wall) ");
+          info2csv("P(top_wall) ");
+          info2csv("P(bottom_wall) ");
+          info2csv("Econserved ");
+          info2csv("MSDx ");
+          info2csv("MSDy ");
+          info2csv("momentum ");
           fprintf(files.csv,"\n"); }
 
         if (measureVar>1) {
-          fprintf(out,"\n----------------------------------------\nVariances (%d points, stride=%d)\n----------------------------------------\n",measureVar,speed.stride);
-          fprintf(out,"Var(V) = %g \n",(sumq.V-sums.V/measureVar)/(measureVar-1));
-          fprintf(out,"Var(H) = %g \n",(sumq.H-sums.H/measureVar)/(measureVar-1));
-          fprintf(out,"Var(Upot) = %g \n",(sumq.Upot-sums.Upot/measureVar)/(measureVar-1));
-          fprintf(out,"Var(%s) = %g \n",isMC(method)?"Tbag":"Ekin",(sumq.Ekin-sums.Ekin/measureVar)/(measureVar-1)); }
+          fprintf(out,"\n-----------------------------------\nVariances (%d points, stride=%d)\n-----------------------------------\n",measureVar,speed.stride);
+          fprintf(out,"Var(V) = %g \n",   (sumq.V-Sqr(sums.V)/measureVar)/(measureVar-1));
+          fprintf(out,"Var(H) = %g \n",   (sumq.H-Sqr(sums.H)/measureVar)/(measureVar-1));
+          fprintf(out,"Var(Upot) = %g \n",(sumq.Upot-Sqr(sums.Upot)/measureVar)/(measureVar-1));
+          fprintf(out,"Var(%s) = %g \n",isMC(method)?"Tbag":"Ekin",
+                                          (sumq.Ekin-Sqr(sums.Ekin)/measureVar)/(measureVar-1)); }
 
         if (CPhead && (incl->value()&1)) { // convergence profiles
 

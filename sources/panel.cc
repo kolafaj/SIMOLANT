@@ -268,7 +268,7 @@ private:
         else /* Metropolis, CREUTZ */
           sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",
                   sum.Tk/iblock,sum.accr/iblock);
-        if (files.record) addM("Tbag",sum.Ekin/iblock); }
+        if (files.record) addM("Tbag",sum.Tk/iblock); }
 
       shorten(s);
       fl_draw(s,atx,aty);

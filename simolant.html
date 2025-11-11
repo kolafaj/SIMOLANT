@@ -1,17 +1,18 @@
 <head>
-  <title>SIMOLANT 10/2025</title>
+  <title>SIMOLANT 11/2025</title>
    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 <body>
-  <h1><font color="NAVY" face="SANS">SIMOLANT 10/2025</font></h1>
+  <h1><font color="NAVY" face="SANS">SIMOLANT 11/2025: Molecular simulation in 2D</font></h1>
 
 <!-- black,red,green,yellow,blue,magenta,fuchsia,cyan,aqua,white,gray,grey,lime,maroon,navy,olive,purple,silver,teal -->
 
+  
   <a name="Contents"></a>
   <h2><font color="NAVY" face="SANS">Contents</font></h2>
   <ul>
-    <li><a href="#Quick">Quick popular start</a></li>
     <li><a href="#Installation">Installation</a></li>
+    <li><a href="#Quick">Quick popular start</a></li>
     <li><a href="#Aims">Aims of SIMOLANT</a></li>
       <ul>
         <li><a href="#High">Elementary and high schools</a></li>
@@ -46,11 +47,22 @@
         <li><a href="#Switches">Switches</a></li>
         <li><a href="#Speed">Simulation speed and measurement blocking</a></li>
       </ul>
+    <li><a href="#Files">Files</a></li>
     <li><a href="#Errors">Error messages</a></li>
     <li><a href="#Command">Command line options</a></li>
     <li><a href="#Bugs">Known bugs and caveats</a></li>
     <li><a href="#Copy">Copying and Credits</a></li>
   </ul>
+
+  <a name="Installation"></a>
+  <h2><font color="NAVY" face="SANS">Installation</font></h2>
+  <p>Get the respective zip-file (simolant-win32.zip for Windows or
+    simolant-amd64.zip for 64-bit linux) and unzip it to a folder.  Run
+    simolant.exe or simolant from this folder (this is necessary for the
+    online help).</p>
+  <p>On other platforms, download simolant-sources.zip and follow the
+    instructions in README.md. You need FLTK V1.3 or higher (not the V2 fork)
+    and gcc/g++.</p>
 
   <a name="Quick"></a>
   <h2><font color="NAVY" face="SANS">Quick popular start</font></h2>
@@ -72,16 +84,6 @@
       Molecules will arrange spontaneously to a hexagonal lattice.</li>
     <li>Try more from menu Prepare system.</li>
   </ul>
-
-  <a name="Installation"></a>
-  <h2><font color="NAVY" face="SANS">Installation</font></h2>
-  <p>Get the respective zip-file (simolant-win32.zip for Windows or
-    simolant-amd64.zip for 64-bit linux) and unzip it to a folder.  Run
-    simolant.exe or simolant from this folder (this is necessary for the
-    online help).</p>
-  <p>On other platforms, download simolant-sources.zip and follow the
-    instructions in README.md. You need FLTK V1.3 or higher (not the V2 fork)
-    and gcc/g++.</p>
 
   <a name="Aims"></a>
   <h2><font color="NAVY" face="SANS">Aims of SIMOLANT</font></h2>
@@ -346,15 +348,16 @@
       Save simulation parameters (N bc walls T L wall dt d method P dV tau qtau g a b c)
       and the configuration (atom positions and velocities) to a file.
       Extension <tt>.sim</tt> is added if not present.
-      The <tt>sim</tt>-file is ASCII and human-readable.</li>
+      The <tt>sim</tt>-file is ASCII and human-readable.
+      [▫&nbsp;comma] swith does not apply.</li>
 
     <li><b><u>P</u>rotocol name...</b><br>
       Change the name of the files used for printing measured quantities (see
       the [▫&nbsp;record] button).  The default is <tt>simolant</tt>.  The
       browser offers text files (extension <tt>.txt</tt>), which are always
       written if recording is selected.  If CSV (Comma-Separated Values) files
-      are to be recorded, see [▫ CSV] button, the extension <tt>.txt</tt> is
-      changed to <tt>.csv</tt>.
+      are to be recorded, see [▫&nbsp;CSV] button, the extension <tt>.txt</tt> is
+      changed to <tt>.csv</tt>.  See also section <a href="#Files">Files</a>.
 
     <li><b><u>E</u>xport force field</b><br>
       <p>Prints a file (tab-separated TXT or CSV, according to the current
@@ -370,8 +373,6 @@
     <li><b><u>Q</u>uit </b><br>
       Quit SIMOLANT. Also pressing Esc will quit.</li>
   </ul>
-
-
 
   <a name="Prepare"></a>
   <h3><font color="navy" face="sans"><i><u>P</u>repare system</i></font></h3>
@@ -1206,11 +1207,10 @@
       just columns with a header.
 
     <li><b>comma</b><br>
-
-      If selected, the recorded file will contain decimal commas, not
+      If selected, the recorded files will contain decimal commas, not
       dots. The same applies to the CSV file(s), where also the separator is
       changed to ';'.  The cmd: field input accepts both comma and period.
-      The on-screen output uses periods only.</li>
+      The on-screen output and sim-files use periods only.</li>
 
     <li><b>include:</b><br>
 
@@ -1359,6 +1359,41 @@
       data.</li>
   </ul>
 
+  <a name="Files"></a>
+  <h2><font color="NAVY" face="SANS">Files</font></h2>
+
+  <h3>Output files</h3>
+
+  <p> For output force field file and sim-file (configuration), <a href="#File">see here</a>.</p>
+  
+  <ul><li><b>simolant.txt</b><br> This is the main output protocol. Name
+      "simolant" can be changed from Menu File → Protocol name.  One block
+      with header MEASUREMENT # (consecutive number) is written after
+      recording a measurement.  In addition to control
+      <a href="#Variables">variables</a> and averages of
+      <a href="#Show">quantities</a> with error estimates, selected
+      variances are printed:
+      <ul>
+      <li>Var(V) = variance of volume (makes sense in NPT simulations)</li>
+      <li>Var(H) = variance of enthalpy (for NPT)</li>
+      <li>Var(Upot) = variance of internal energy (for NVT)</li>
+      <li>Var(Ekin) = variance of kinetic energy (MD)</li>
+      <li>Var(Tbag) = variance of Creutz's bag (MC)</li>
+      </ul>
+      The variances are based on single (not blocked) measurements.
+        Var(Tbag) is based on the last Tbag from a MC sweep (not from all bag
+        temperatures).
+      <ul><li><b>simolant.csv</b><br> If button [▫&nbsp;CSV] is active, the
+          control variables and quantities from simolant.txt are placed here
+          so that one line corresponds to one recording.  See also
+          [▫&nbsp;comma] for the separator.</li>
+        <li><b>simolant-CP#.csv</b><br> If button [▫&nbsp;CSV] is active, the [Include] selector contains Convergence profile (or Both), time dependences of blocked quantities are exported.</li>
+        <li><b>simolant-RDF#.csv</b><br> If button [▫&nbsp;CSV] is active, the [Include] selector contains Density profile (or Both), and the Radial distribution function is selected in Menu Show, it is exported.</li>
+        <li><b>simolant-VDP#.csv</b><br> If button [▫&nbsp;CSV] is active, the [Include] selector contains Density profile (or Both), and the Vertical density profile is selected in Menu Show, it is exported.</li>
+        <li><b>simolant-DRDP#.csv</b><br> If button [▫&nbsp;CSV] is active, the [Include] selector contains Density profile (or Both), and the Cavity radial density profile is selected in Menu Show, it is exported.</li>
+        <li><b>simolant-CRDP#.csv</b><br> If button [▫&nbsp;CSV] is active, the [Include] selector contains Density profile (or Both), and the Droplet radial density profile is selected in Menu Show, it is exported.</li>
+    </ul>
+
   <a name="Errors"></a>
   <h2><font color="NAVY" face="SANS">Error messages</font></h2>
 
@@ -1403,7 +1438,7 @@
       </font>
       You should fix the parameters and start the NPT simulation again (it is
       not done automatically because often Berendesn NPT should be used before
-      Martuna et al. NPT is started).</li>
+      Martyna et al. NPT is started).</li>
   </ul>
 
   <a name="Command"></a>
@@ -1437,9 +1472,16 @@
   <a name="Bugs"></a>
   <h2><font color="NAVY" face="SANS">Known bugs and caveats</font></h2>
   <ul>
-    <li>There are still timing, thread-priority, and/or efficiency problems.
-      The original dumb X11-only version was faster.</li>
-    <li>Both / and \ treated as directory separator (on all platforms).</li>
+    <li>The timing and frame rate strategy is OK for medium-size systems on
+      most machines, but not perfect.</li>
+    <li>Both / and \ are treated as directory separator (on all
+      platforms).</li>
+    <li>A user can opt for decimal commas instead of periods in output files
+      (comma also forces the CSV separator to ;).  The configuration file
+      (.sim) still uses periods.  SIMOLANT will never ever read the locale
+      info to select the decimal separator because most mathematical software
+      uses periods anyway and many users from comma-countries prefer periods
+      to be compatible.</li>
     <li>Inconsistent command line option format.</li>
     <li>Under hard conditions (fast changes of N, density), an
       out-of-box particle may pass unnoticed and cause various
@@ -1455,6 +1497,7 @@
   <p>
   <h3><font color="navy" face="sans"><i>History</i></font></h3>
   <ul>
+    <li>11/2025 Bug fixes: Tbag (for MC), variances (not blocked).</li>
     <li>10/2025 Error messages for the 2nd time shown in a shorter time, header CSV separator fixed.</li>
     <li>09/2025 Minor fixes, some problematic UNICODE characters (∈ → ⇒ ⟨⟩ −) replaced (not in simolant.html and comments), Win64 exe</li>
     <li>04/2025 Berendsen NPT bug (small density) fixed, error messages

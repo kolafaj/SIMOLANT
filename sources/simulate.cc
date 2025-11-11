@@ -270,15 +270,17 @@ private:
       if (files.record) {
         double Ek=isMC(method)?bag:En.Ekin;
         if (!measureVar) {
+          /* shift for better numerical stability (the variance is the same) */
+          sums.V=sums.Upot=sums.H=sums.Ekin=0;
+          sumq=sums;          
           sum0.V=V;
           sum0.Upot=En.Upot;
           sum0.H=En.H;
           sum0.Ekin=Ek; }
-
-        sums.V+=V-sum0.V; sumq.V+=Sqr(V-sum0.V);
-        sums.H+=En.H-sum0.H; sumq.H+=Sqr(En.H-sum0.H);
+        sums.V   +=V-sum0.V;          sumq.V+=Sqr(V-sum0.V);
+        sums.H   +=En.H-sum0.H;       sumq.H+=Sqr(En.H-sum0.H);
         sums.Upot+=En.Upot-sum0.Upot; sumq.Upot+=Sqr(En.Upot-sum0.Upot);
-        sums.Ekin+=Ek-sum0.Ekin; sumq.Ekin+=Sqr(Ek-sum0.Ekin);
+        sums.Ekin+=Ek-sum0.Ekin;      sumq.Ekin+=Sqr(Ek-sum0.Ekin);
         measureVar++; } }
 
     else

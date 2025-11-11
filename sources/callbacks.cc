@@ -422,7 +422,7 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
 
     else if (!nocasecmp(cmd,"fps")) { /* frame rate per second (FPS) */
       if (assign) {
-        BRACKETVAL(val,1,240);
+        BRACKETVAL(val,1,360); /* max. FPS = 360 */
         speed.FPS=val; }
       append("FPS",speed.FPS); }
 

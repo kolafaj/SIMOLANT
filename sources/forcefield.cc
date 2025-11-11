@@ -7,10 +7,10 @@ char *FFinfo(int verbose) /****************************************** FFinfo */
   static char info[64];
 
   if (verbose) switch (ss.ff) {
-      case LJ: sprintf(info,"2D Lennard-Jones cutoff c=%g",ss.C2); break;
+      case LJ: sprintf(info,"2D Lennard-Jones, cutoff c=%g",ss.C2); break;
       case WCA: sprintf(info,"2D WCALJ"); break;
-      case PD: sprintf(info,"Penetrable disks a=%g c=%g",ss.a,ss.C2); break;
-      case DW: sprintf(info,"Double Well a=%g b=%g c=%g",ss.a,ss.b,ss.C2); break;
+      case PD: sprintf(info,"Penetrable disks, a=%g c=%g",ss.a,ss.C2); break;
+      case DW: sprintf(info,"Double Well, a=%g b=%g c=%g",ss.a,ss.b,ss.C2); break;
       default: strcpy(info,"ERROR"); }
   else switch (ss.ff) {
       case LJ: sprintf(info,"LJ c=%g",ss.C2); break;
