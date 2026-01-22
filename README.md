@@ -50,7 +50,7 @@ Molecular simulation in 2D. See directory `executables/` for the installation.
 
 ## Licences
 
-Copyright (C) 2025 Jiří Kolafa
+Copyright (C) 2026 Jiří Kolafa
 
 This program is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.html) (GPLv3), as published by the Free Software Foundation.
 
