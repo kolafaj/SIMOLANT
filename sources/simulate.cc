@@ -242,10 +242,10 @@ private:
         if (isMD(method))
           MDstep(Pneeded);
         else {
-          accepted=Vaccepted=0;
+          acc.Nd=acc.NV=0;
           MCsweep();
-          sum.accr+=(double)accepted/(N*speed.stride);
-          sum.Vaccr+=(double)Vaccepted/speed.stride; }
+          sum.accr+=(double)acc.Nd/(N*speed.stride);
+          sum.Vaccr+=(double)acc.NV/speed.stride; }
         sum.Tk+=Tk/speed.stride; // Tkin or Tbag averaged
       } // speed.stride
 
@@ -272,7 +272,7 @@ private:
         if (!measureVar) {
           /* shift for better numerical stability (the variance is the same) */
           sums.V=sums.Upot=sums.H=sums.Ekin=0;
-          sumq=sums;          
+          sumq=sums;
           sum0.V=V;
           sum0.Upot=En.Upot;
           sum0.H=En.H;
@@ -304,7 +304,10 @@ private:
           neighbors();
           break;
         case CM_ART:
-          art();
+          art(0);
+          break;
+        case CM_VELOCITY:
+          art(1);
           break;
         case CM_YSPLIT:
           y_split();
@@ -516,7 +519,7 @@ private:
     Simulate *sim = (Simulate*)userdata;
 
     // show/hide sliders as needed
-    if (isMC(method) && !setd->value())
+    if (isMC(method) && !dset->value())
       sliders.d->show();
     else
       sliders.d->hide();
@@ -527,9 +530,9 @@ private:
       sliders.tau->hide();
 
     if (isMC(method))
-      setd->show();
+      dset->show();
     else
-      setd->hide();
+      dset->hide();
 
     if (isNPT(method)) {
        sliders.P->show();
@@ -586,9 +589,17 @@ private:
 
     files.record=buttons.record->value();
 
-    if (files.record && !files.record0) {
+    if (files.record && !files.record0) { // recording started
       int i;
 
+      if (isMC(method) && dset->value() && fl_ask1("\
+MC simulations with \'set MC moves\' function\n\
+(automatic setup of MC displacements and volume changes)\n\
+should not be used in productive runs.\n\
+\n\
+Turn \'set MC moves\' off?","")) dset->value(0);
+
+      files.clock=clock();
       MSDskip=0;
 
       // initialization of MSD
@@ -624,7 +635,7 @@ private:
         errmsgtimeout=2-(errmessage==MSDFAILED);
 //      fprintf(stderr,"errmsgtimeout=%g\n",errmsgtimeout);
       preverrmessage=errmessage;
-      
+
       lasterrmessage=errmessage; // passes to the top right panel
       errmessage=NOERROR;
       Fl::repeat_timeout(errmsgtimeout, timer_callback, userdata); }

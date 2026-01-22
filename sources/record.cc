@@ -202,11 +202,11 @@ int showclearM() /*********************************************** showclearM */
       serr[0]=0;
 
     if (a==head) end+=sprintf(end,"\
-%2d blocks (block length=%d, stride=%d)\n\
-----------------------------------------\n\
+%2d blocks (block length=%d, stride=%d), clock_time = %.4f s\n\
+--------------------------------------------------------------\n\
 quantity = average ± standard error (relative standard error)\n\
--------------------------------------------------------------\n\
-",a->n,block,speed.stride);
+--------------------------------------------------------------\n\
+",a->n,block,speed.stride,(double)(clock()-files.clock)/1e6);
 
     end+=sprintf(end,"%s = %g%s\n", a->name, av,serr); }
 
@@ -283,7 +283,7 @@ Parameters:\n\
         if (files.csv) {
           if (files.nmeas==1) {
             // CSV header: cf. info2csv below
-            static char hdr[]="#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed,block,Etot,err,Tkin|bag,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econs,err,MSDx,at_t,MSDy,at_t,momentum\n";
+            static char hdr[]="#,N,bc,method,T,P,g,walls,rho_wall,L,rho,c,a,b,tau,qtau,dt|d,dV,speed,block,Etot,err,Tkin|bag,err,Epot,err,V,err,Z,err,Pvir,err,Pxx,err,Pyy,err,γ,err,enthalpy,err,P(right_wall),err,P(left_wall),err,P(top_wall),err,P(bottom_wall),err,Econs,err,MSDx,at_t,MSDy,at_t,momentum,accept_ratio,V_accept_ratio\n";
             char *x; // change separator
             for (x=hdr; *x ; x++) if (strchr(",;",*x)) *x=files.sep;
             fputs(hdr,files.csv); }
@@ -345,7 +345,7 @@ Parameters:\n\
 
         sprintf(lout,"\
   d=%g(%s) trial displacement in L (MC)\n\
-  dV=%g trial volume change (NPT MC)\n",d,setd->value()?"auto":"fixed",dV);
+  dV=%g trial volume change (NPT MC)\n",d,dset->value()?"auto":"fixed",dV);
         comma(lout);
         fputs(lout,out);
 
@@ -358,10 +358,14 @@ Parameters:\n\
         //        comma(lout);
         fputs(lout,out);
 
-        fprintf(out,"\n----------------------------------------\n");
+
+        if (isMC(method) && dset->value())
+          fprintf(out,"\n-- SET MC MOVES HAS BEEN ON, THE RESULTS MAY BE INACCURATE ---\n\n");
+        else
+          fprintf(out,"\n--------------------------------------------------------------\n");
         fputs(files.info,out);
-        // fprintf(stderr,"strlen(files.info)=%d\n",(int)(strlen(files.info)));
-        // 590..730 bytes detected ⇒ files.info: char info[1024] is safe
+        //        fprintf(stderr,"strlen(files.info)=%d\n",(int)(strlen(files.info))); // DEBUG
+        // up to ~750 bytes detected ⇒ files.info: char info[1024] is safe
 
         if (files.csv) {
           // Writing CSV from re-parsed info string.
@@ -385,6 +389,8 @@ Parameters:\n\
           info2csv("MSDx ");
           info2csv("MSDy ");
           info2csv("momentum ");
+          info2csv("accept_ratio ");
+          info2csv("V_accept_ratio ");
           fprintf(files.csv,"\n"); }
 
         if (measureVar>1) {

@@ -262,13 +262,16 @@ private:
           sprintf(s,"Tkin=%5.3f  dt%s%5.4f",Tav,eq,dt);
         if (files.record) addM("Tkin",Tav); }
       else {
-        if (method==MCNPT) // UNICODE problem ⟨⟩
+        if (method==MCNPT)              // UNICODE problem ⟨⟩
           sprintf(s,"Tbag=%5.3f  acc.r.=%.4f (V %.4f)  ρ=N/<V>=%.4f",
                   sum.Tk/iblock,sum.accr/iblock,sum.Vaccr/iblock,rhoav);
         else /* Metropolis, CREUTZ */
           sprintf(s,"Tbag=%5.3f  acc.r.=%5.3f",
                   sum.Tk/iblock,sum.accr/iblock);
-        if (files.record) addM("Tbag",sum.Tk/iblock); }
+        if (files.record) {
+          if (method==MCNPT) addM("V_accept_ratio",sum.Vaccr/iblock);
+          addM("accept_ratio",sum.accr/iblock);
+          addM("Tbag",sum.Tk/iblock); } }
 
       shorten(s);
       fl_draw(s,atx,aty);
@@ -1005,16 +1008,17 @@ class ExpertPanel : public Fl_Box ///////////////////////////////// ExpertPanel
 protected:
   void draw () {
     /* print previous command of [cmd:] aggregated string */
-    int atx=x()+6,aty=y()+6;
+    int atx=x()+6,aty=y()+6,ycmd=aty+h()-12;
 
     //    Fl_Box::draw();
     // I'm missing function drawing a frame using FL_UP_BOX
     fl_frame("XXAA",x(),y(),w(),h());
 
     fl_font(FL_HELVETICA,16);
-    fl_draw_box(FL_FLAT_BOX,atx,aty+88,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
-    fl_color(FL_BLACK);
-    fl_draw(printcmd,atx+1,aty+105);
+    //fl_draw_box(FL_FLAT_BOX,atx,aty+88,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
+    fl_draw_box(FL_FLAT_BOX,atx,ycmd-PRINTHEIGHT,PANELW/2-24,PRINTHEIGHT,FL_WHITE);
+    fl_color(OI_BLUE);
+    fl_draw(printcmd,atx+1,ycmd-5);
   }
 
 public:
@@ -1112,8 +1116,8 @@ Selected available VARIABLEs are:\n\
   tau, τ = thermostat time constant (MD)\n\
   wall = wall number density\n\
 More VARIABLEs (see the manual):\n\
-  a b bc c circle ff fps method nbr\n\
-  ncell show speed trace v\n\
+  a acc.d acc.V b bc c circle ff fps method\n\
+  nbr ncell show speed trace v\n\
 Example:\n\
   ρ=0.01\n\
 Values out of slider range may be accepted.");
@@ -1190,7 +1194,7 @@ and set the min-max range anew.\n");
 COLOR MODE\n\
 \n\
 Black = All atoms are black\n\
-One = One atom black, the rest orange\n\
+One black = One atom black, the rest orange\n\
 y-split = Top half of the configuration is blue,\n\
     bottom half red, and these colors are kept\n\
 Neighbors = Colorize atoms by the number of\n\
@@ -1199,11 +1203,14 @@ Random = Colorize atoms randomly (and keep)\n\
 Art = Cycle through rainbow colors, best with\n\
     draw mode=Line or Trace.\n\
     Change length by variable trace (from cmd:)\n\
+Velocity = Color is given by the direction of\n\
+    particle velocity on a color wheel, best with\n\
+    draw mode=Line or Trace, default for Vicsek.\n\
 Keep = Keep the colors (e.g., after Neighbors)");
 
-    setd=new Fl_Light_Button(atx+W/2+4,aty,118,25,"set MC moves");
-    setd->selection_color(OI_GREEN);
-    setd->tooltip("\
+    dset=new Fl_Light_Button(atx+W/2+4,aty,118,25,"set MC moves");
+    dset->selection_color(OI_GREEN);
+    dset->tooltip("\
 AUTOMATIC DETERMINATION OF MC MOVE SIZE\n\
 \n\
 Should be off for productive runs!\n\
@@ -1218,7 +1225,7 @@ Move length d can be also set by slider \"d\" or by\n\
 \"d=number\" (in units of L/2) from input field cmd:.\n\
 The value of dV (max relative change of L in a step)\n\
 can be set from cmd:, but not from a slider.");
-    setd->value(1);
+    dset->value(1);
 
     run=new Fl_Light_Button(atx+W-65,aty,48,25,"run");
     run->selection_color(OI_GREEN);

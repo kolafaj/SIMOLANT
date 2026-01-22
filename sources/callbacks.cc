@@ -258,7 +258,7 @@ Where is:\n\
     http://old.vscht.cz/fch/software/simolant/index-en.html\n\
 Supported by:\n\
     1985–2001 Institute of Chemical Process Fundamentals\n\
-    2001–2020 University of Chemistry and Technology, Prague\n\
+    2001–2026 University of Chemistry and Technology, Prague\n\
     2012–2013 TUL Liberec, EU: esf (evropský sociální fond\n\
         v ČR), MŠMT: OP Vzdělání pro konkurenceschopnost\n\
 Acknowledgements:\n\
@@ -402,11 +402,24 @@ static void parse_cmd(char *cmd) /******************************** parse_cmd */
         else dtadjset(); }
       append("dt",dtfixed); }
 
+    /* displacement d is see above (is variable with a slider) */
     else if (!nocasecmp(cmd,"dV")) { /* MC volume change */
       if (assign) {
         BRACKETVAL(val,1e-4,MAXDV);
         dV=val; }
       append("dV",dV); }
+
+    else if (!nocasecmp(cmd,"acc.d")) { /* target displacement acceptance ratio */
+      if (assign) {
+        BRACKETVAL(val,0.01,0.9);
+        acc.d=val; }
+      append("acc.d",acc.d); }
+
+    else if (!nocasecmp(cmd,"acc.V")) { /* target volume acceptance ratio */
+      if (assign) {
+        BRACKETVAL(val,0.01,0.9);
+        acc.V=val; }
+      append("acc.V",acc.V); }
 
     else if (!nocasecmp(cmd,"qtau") || !nocasecmp(cmd,"qτ")) { /* MD qτ=τP/τ */
       if (assign) {

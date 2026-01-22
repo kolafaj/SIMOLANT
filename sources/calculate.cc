@@ -86,16 +86,7 @@ enum method_e                {AUTO,       CREUTZ,         METROPOLIS,         MC
 //UNICODE problem const char *methodinfo[NTH]={"NVT MC→MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/NVT/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
 const char *methodinfo[NTH]={"NVT MC->MD","MC/NVE/Creutz","MC/NVT/Metropolis","MC/NPT/Metropolis","MD/NVE","MD/NVT/Berendsen","MD/NVT/Nosé–Hoover","MD/NVT/Andersen","MD/NVT/Maxwell–Bol.","MD/NVT/Langevin","MD/NVT/Bussi CSVR","MD/NPT/Berendsen","MD/NPT/Martyna et al.","MD/NVT/VICSEK" };
 int mcstart; // # of MC steps (Metropolis/NPT) to equilibrate before the selected MD starts
-#if 1
-#define NOERROR 0
-#define MDFAILED 1
-#define NPTFAILED 2
-#define MSDFAILED 3
-int errmessage=NOERROR;
-#else
-// Win 32 compiler bug here: this line causes ERROR "expected identifier before {"
 enum errmessage_e {NOERROR,MDFAILED,NPTFAILED,MSDFAILED} errmessage=NOERROR;
-#endif
 int lasterrmessage=NOERROR;
 
 typedef double (*function_t)(double r); // for potential() and forces()
@@ -106,7 +97,7 @@ void MCNPTlc(linklist_t *l);
 
 int wasMDerror; // previously MDFAILED - to break "Switching temporarily to Monte Carlo…" loop
 
-enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_ART,CM_KEEP};
+enum colormode_e {CM_BLACK,CM_ONERED,CM_YSPLIT,CM_NEIGHBORS,CM_RANDOM,CM_ART,CM_VELOCITY,CM_KEEP};
 
 #define isMC(method) (method>=CREUTZ && method<=MCNPT)
 #define isMD(method) (method>=NVE)
@@ -123,9 +114,13 @@ enum cfg_t {GAS,DIFFUSION,GRAVITY,
             INITVICSEK,
             SENTINEL} cfg=GAS; /* initial cfg. */
 
-int accepted=0,Vaccepted=0; /* # of accepted MC moves */
+struct acc_s {
+  unsigned Nd=0; // count of accepted displacements
+  unsigned NV=0; // count of accepted V changes
+  double d=0.3;  // target displacement ratio for auto set
+  double V=0.4;  // target volume change acceptance ratio for auto set
+} acc;
 
-double acc=0.3; /* acceptance ratio for auto set */
 double tau=1; /* MD thermostat time constant */
 
 double dt=0.02,dtadj=0.02,dtfixed; /* MD timestep, adaptive version, fixed */
@@ -444,7 +439,7 @@ void preopt(int from,int to,double xy0,double RR) /****************** preopt */
       rr=Sqr(rt.x)+Sqr(rt.y);
       ff=rr-RR;
       if (ff>0) { a[i].x-=rt.x*ff; a[i].y-=rt.y*ff; }
-      
+
       loop (j,i+1,to) {
         rt.x=r[i].x-r[j].x; rt.y=r[i].y-r[j].y;
         ff=f(Sqr(rt.x)+Sqr(rt.y));
@@ -462,7 +457,7 @@ void preopt(int from,int to,double xy0,double RR) /****************** preopt */
       r[i].y+=a[i].y*d;
       // printf("%g %g 0\n",r[i].x,r[i].y);
     }
-    
+
     d*=0.9; }
 }
 
@@ -472,7 +467,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
   double ff;
   vector rt;
   double RR;
-  
+
   lastcfg=cfg;
 
   mauto=BUSSI;
@@ -519,6 +514,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case VLE:
       /* layer of liquid at bottom */
+      if (N<30) N=30;
       bc=SLIT;
       L=rho2L(0.2); Lh=L/2;
       walls=8;
@@ -530,6 +526,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case SLAB:
       /* layer of liquid as a slab */
+      if (N<40) N=40;
       bc=PERIODIC;
       Show=YPROFILE;
       L=rho2L(0.3); Lh=L/2;
@@ -537,12 +534,13 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
         r[i].x=rnd()*L; r[i].y=(rnd()*0.46+0.27)*L; }
       mcstart=100;
       d=0.3/Lh;
-      setd->value(1);
+      dset->value(1);
       T=0.6;
       break;
 
     case NUCLEATION:
       /* initial random configuration, low density */
+      if (N<60) N=60;
       bc=PERIODIC;
       Show=ENERGY;
       L=rho2L(0.04); Lh=L/2;
@@ -555,6 +553,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case CAVITY:
       /* cavity in attractive box */
+      if (N<80) N=80;
       Show=CPROFILE;
       L=rho2L(0.5); Lh=L/2;
       walls=15;
@@ -568,6 +567,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case LIQUIDDROP:
       /* big droplet */
+      if (N<30) N=30;
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
       Show=RPROFILE;
@@ -582,6 +582,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case TWODROPS:
       /* two droplets */
+      if (N<30) N=30;
       bc=PERIODIC;
       L=rho2L(0.15); Lh=L/2;
       Show=TEMPERATURE;
@@ -596,7 +597,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
         do { r[i].x=rnd()*L; r[i].y=rnd()*L; }
         while (Sqr(r[i].x-Lh*1.5)+Sqr(r[i].y-Lh*1.5)>RR);
         molcol[i]=OI_BLUE; }
-      preopt(N/2,N,Lh*1.5,RR); 
+      preopt(N/2,N,Lh*1.5,RR);
 
       d=0.3/sqrt(N);
       mcstart=50; // causes also set velocity of the droplets
@@ -606,6 +607,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case CAPILLARY:
       /* box, layer at bottom */
+      if (N<50) N=50;
       L=rho2L(0.35); Lh=L/2;
       loop (i,0,N) {
         r[i].x=0.5+rnd()*(L-1); r[i].y=0.5+(rnd()*0.5+0.5)*(L-1); }
@@ -617,9 +619,11 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       break;
 
     case PERIODICLIQUID:
-      /* initial random configuration, low density */
+      /* initial random configuration, liquid density */
+      if (N<30) N=30;
       bc=PERIODIC;
       Show=RDF;
+      if (N<30) N=30;
       L=rho2L(0.73); Lh=L/2;
       loop (i,0,N) {
         r[i].x=rnd()*L; r[i].y=rnd()*L; }
@@ -677,6 +681,7 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
 
     case INITVICSEK:
       // Vicsek implemented if (ss.vicsek) only in periodic+Langevin:
+      if (N<30) N=30;
       bc=PERIODIC;
       //  method=VICSEK; // shows [MD/NVT/VICSEK] instead of MD/NVT/VICSEK - why?
       mauto=VICSEK;
@@ -691,9 +696,11 @@ void initcfg(enum cfg_t cfg) /************************************** initcfg */
       ss.a=0.2; setss(PD,CUTOFF);
       T=1;
       drawmode->value(1); // traces
+      colormode->value(CM_VELOCITY); // velocity by color wheel
       break;
 
     default: // nonperiodic crystals: CRYSTAL,DEFECT,VACANCY,INTERSTITIAL
+      if (N<16) N=16;
       L=rho2L(0.25); Lh=L/2;
       k=sqrt(N/3)+1;
       do {
@@ -862,7 +869,7 @@ void MDerror(void) /************************************************ MDerror */
   mcstart=256;
   if (N>500) mcstart=128000/N;
   d=0.1;
-  setd->value(1);
+  dset->value(1);
   mauto=method;
   method = isNPT(mauto) ? MCNPT : METROPOLIS;
 
@@ -1308,7 +1315,7 @@ void MCsweep(void) /************************************************ MCsweep */
   vector rt,ri,incirc,drt,dri; /* trial position, r[i], random vector */
   int i,j,k,l;
   double deltaU; /* MC: Utrial-U */
-  int isdauto=setd->value();
+  int isdset=dset->value();
 
   /* max displacement = Lh=L/2 */
   Lh=L/2;
@@ -1394,17 +1401,17 @@ void MCsweep(void) /************************************************ MCsweep */
     if (deltaU<bag) {
       /* move accepted */
       bag-=deltaU; // not needed for METROPOLIS
-      accepted++;
+      acc.Nd++;
       r[i]=rt;
 
       /* automatic adjustment of displacement size to reach
          acceptance ratio = acc; tiny violation of
          microreversibility is usually acceptable */
-      if (isdauto) d*=1+(1-acc)*(0.003/sqrt(N)); }
+      if (isdset) d*=1-(acc.d-1)*(0.003/sqrt(N)); }
     else {
       /* move rejected */
       /* automatic adjustment of displacement size */
-      if (isdauto) d*=1-acc*(0.003/sqrt(N)); }
+      if (isdset) d*=1-acc.d*(0.003/sqrt(N)); }
 
     if (d>1) d=1;
 
@@ -1413,7 +1420,7 @@ void MCsweep(void) /************************************************ MCsweep */
 
   Tk=En.Ekin/N; // consistent with Tk=2*Ekin/Nf in MD (Nf=2N)
 
-  if (isdauto) sliders.d->value(log(d)/DSCALE);
+  if (isdset) sliders.d->value(log(d)/DSCALE);
 
   if (method==MCNPT) {
     double Lf=rndcos()*dV,f=exp(Lf),rr;
@@ -1491,9 +1498,9 @@ void MCsweep(void) /************************************************ MCsweep */
          (For mu=const (e.g., mu=P/T), use Lf*(2*N+2) instead of Lf*(2*N)
          in the formula above.)
       */
-      Vaccepted++;
-      if (isdauto) {
-        if (dV<MAXDV) dV*=1+(1-acc)*0.01; }
+      acc.NV++;
+      if (isdset) {
+        if (dV<MAXDV) dV*=1-(acc.V-1)*0.01; }
       rr=L2rho(L);
       if (rr<MINRHONPT) {
         errmessage=NPTFAILED;
@@ -1507,8 +1514,8 @@ void MCsweep(void) /************************************************ MCsweep */
       loop (i,0,N) { r[i].x*=f; r[i].y*=f; } }
     else {
       /* move rejected */
-      if (isdauto) {
-        if (dV>0.001/sqrt(N)) dV*=1-acc*0.01; } }
+      if (isdset) {
+        if (dV>0.001/sqrt(N)) dV*=1-acc.V*0.01; } }
   } /* NPT */
 
   if (debug) debugtimer("MC");
@@ -1516,19 +1523,27 @@ void MCsweep(void) /************************************************ MCsweep */
   t+=1;
 } // MCsweep()
 
-void art(void) /******************************************************** art */
+void art(int mode) /**************************************************** art */
+/* mode=0:
+     Color of each particle rotates around color wheel,
+     particles are color-shifted according to the index.
+   mode=1:
+     Color of a particle is given by the direction of velocity.
+*/
 {
-  double phase=t/trace;
+  double phase=t/trace,phi;
   int i;
 
   if (isMD(method)) phase/=dt;
+  else if (mode) return; /* no velocity in MC */
 
   loop (i,0,N) {
-    phase=fmod(phase+2*PI*i/N,2*PI);
+    if (mode) phi=atan2(v[i].y,v[i].x);
+    else phi=fmod(phase+2*PI*i/N,2*PI);
 
-    molcol[i]=((unsigned)(cos(phase)*127.9999+128)<<24)
-            | ((unsigned)(cos(phase+2*PI/3)*127.9999+128)<<16)
-            | ((unsigned)(cos(phase+4*PI/3)*127.9999+128)<<8); }
+    molcol[i]=((unsigned)(cos(phi)*127.9999+128)<<24)
+            | ((unsigned)(cos(phi+2*PI/3)*127.9999+128)<<16)
+            | ((unsigned)(cos(phi+4*PI/3)*127.9999+128)<<8); }
 }
 
 int shownbrs;

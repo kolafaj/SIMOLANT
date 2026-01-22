@@ -2,7 +2,7 @@
 // g++ -O2 -o simolant simolant.cc -lfltk -lfltk_images
 // g++ -g -o simolant simolant.cc -lfltk -lfltk_images
 
-#define VERSION "11/2025"
+#define VERSION "01/2026"
 
 // cmath must be first (otherwise windows problems)
 #include <cmath>
@@ -116,6 +116,7 @@ struct files_s {
   int record=0;         // state of recording
   int record0=0;        // last state of recording
   int nmeas=0;          // counter of blocked measurements
+  clock_t clock;        // start recording clock
   char sep=',';         // CSV field separator (global)
   FILE *csv=NULL;       // output CSV file with blocked neasurements
   char protocol[256]="simolant"; // .txt or .csv will be added, cf. cb_protocol()
@@ -144,7 +145,7 @@ struct Buttons {
 
 Fl_Help_Dialog *help;
 Fl_Choice *molsize,*drawmode,*colormode,*incl;
-Fl_Button *resetgraph,*resetview,*setd;
+Fl_Button *resetgraph,*resetview,*dset;
 Fl_Light_Button *run; // run/hold
 
 void calculateB2(void); // needed in setss()
@@ -195,11 +196,12 @@ Fl_Menu_Item drawmodeitems[]={
   { 0 } };
 Fl_Menu_Item colormodeitems[]={
   { "&Black" },
-  { "&One" },
+  { "&One black" },
   { "&y-split" },
   { "&Neighbors" },
   { "&Random" },
   { "&Art" },
+  { "&Velocity" },
   { "&Keep" },
   { 0 } };
 
@@ -229,7 +231,7 @@ Fl_Menu_Item menuitems[] = {
   { "+ &Diffusion", 0, cb_diffusion },
   { "+ G&ravity", 0, cb_gravity, 0, FL_MENU_DIVIDER },
   { "Vapor-liquid e&quilibrium", 0, cb_vle },
-  { "Horizontal &Slab", 0, cb_slab },
+  { "Horizontal &slab", 0, cb_slab },
   { "&Nucleation", 0, cb_nucleation },
   { "&Liquid droplet", 0, cb_liquid },
   { "&Two droplets", 0, cb_twodrops },
